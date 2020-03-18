@@ -1,10 +1,9 @@
 import pickle as pkl
 
 import numpy as np
-from tensorflow.keras import utils
 
 
-def load_data(data_path, label_path, mmap=True, truncate_items=None):
+def load_data_and_label(data_path, label_path, mmap=True, truncate_items=None):
     """
     Load data and label from the path.
 

@@ -3,14 +3,14 @@ import collections
 import numpy as np
 import tensorflow as tf
 from keras import losses, metrics, optimizers
-from tensorflow.keras import layers
+from tensorflow.python.keras import layers
 from tensorflow.python.keras.engine.training import Model
 
 
 def build(batch_size,
           num_classes,
           optimizer='adam',
-          loss='categorical_crossentropy',
+          loss='sparse_categorical_crossentropy',
           metrics=['accuracy']):
     """
     Build architecture
@@ -22,6 +22,9 @@ def build(batch_size,
 
     model = tf.keras.Sequential()
 
+    # TODO: try to skip invalid timesteps with Masking
+    # model.add(layers.Masking())
+
     # model.add(layers.Embedding(input_dim=num_classes, output_dim=2745))
 
     # model.add(layers.Dense(24, input_dim=batch_size))
@@ -31,9 +34,9 @@ def build(batch_size,
     #                dropout=0.1, recurrent_dropout=0.1))
     model.add(layers.LSTM(32, return_sequences=True))
 
-    model.add(layers.LSTM(32, return_sequences=True))
+    model.add(layers.LSTM(128, return_sequences=True))
 
-    model.add(layers.LSTM(32))
+    model.add(layers.LSTM(256))
 
     # model.add(layers.RNN(nlstm.NestedLSTMCell(64, depth=2, input_shape=(60, 27, 3))))
 
@@ -44,7 +47,9 @@ def build(batch_size,
     # model.add(layers.Dropout(0.5))
 
     # Output layer:
-    model.add(layers.Dense(num_classes, activation='softmax'))
+    model.add(layers.Dense(num_classes))
+    model.add(layers.Activation('softmax'))
+
     # ---------------------------------------------------------
 
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
@@ -82,10 +87,15 @@ def build(batch_size,
     return model
 
 
-def train(model: Model, x, y, verbose=1):
-    model.fit(x=x, y=y, epochs=10, batch_size=8, verbose=verbose)
+def train(model: Model, X_train, y_train, X_test, y_test, verbose=1):
+    model.fit(x=X_train, y=y_train, validation_data=(X_test, y_test), epochs=10, verbose=verbose)
 
     # Evaluate:
-    result = model.predict(x, batch_size=8, verbose=verbose)
+    result = model.predict(X_train, batch_size=8, verbose=verbose)
     for value in result:
-        print('%.1f' % np.argmax(result[0]))
+        print('%.1f' % np.argmax(value))
+
+
+    # result = model.predict_classes(X_train, verbose=verbose)
+    # for value in result:
+    #     print('%.1f' % value)

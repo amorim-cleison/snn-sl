@@ -3,9 +3,12 @@ from os.path import isdir
 import numpy as np
 
 import utils as u
-import tensorflow.keras.utils as tfutils
+import tensorflow
 
-def load_data(path: str, num_classes: int):
+from sklearn.preprocessing import MultiLabelBinarizer
+
+
+def load_data(path: str):
     """
     Load and prepare the data present in the presented path. 
     The input data is loaded in the layout:
@@ -30,27 +33,21 @@ def load_data(path: str, num_classes: int):
     ----------
     path : str
         The path to the data to be loaded.
-        
-    num_classes : int
-        Number of classes (or categories) to consider while 
-        preparing labels.
 
     Returns
     ----------
     A list of the following data, in this sequence:
 
-    - train_x : numpy array
+    - X_train : numpy array
         Training data.
-    - train_y : numpy array
+    - y_train : numpy array
         Labels for the training data.
-    - train_samples : list
-        Name of the JSON files for every item in the training labels.
-    - test_x : numpy array
+    - X_test : numpy array
         Test / validation data.
-    - test_y : numpy array
+    - y_test : numpy array
         Labels for the test / validation data.
-    - test_samples : list
-        Name of the JSON files for every item in the test / validation labels.
+    - num_classes : integer
+        Number of classes (or categories) in loaded data.
     """
     if not isdir(path):
         raise FileNotFoundError("Invalid path: '{0}'.", path)
@@ -58,22 +55,25 @@ def load_data(path: str, num_classes: int):
     data_path = '{0}/{1}_data.npy'
     label_path = '{0}/{1}_label.pkl'
 
-    train = u.load_data(
+    train = u.load_data_and_label(
         data_path.format(path, 'train'), label_path.format(path, 'train'))
-    test = u.load_data(
+    test = u.load_data_and_label(
         data_path.format(path, 'test'), label_path.format(path, 'test'))
 
-    train_x = prepare_data(train['data'])
-    # train_y = prepare_labels(train['labels'], num_classes)
-    train_y = train['labels']
-    train_samples = train['sample_names']
+    # Train data:
+    X_train = prepare_data(train['data'])
+    # y_train = prepare_labels(train['labels'], num_classes)
+    y_train = np.asarray(train['labels'])
 
-    test_x = prepare_data(test['data'])
-    test_y = prepare_labels(test['labels'], num_classes)
-    test_samples = test['sample_names']
+    # Test data:
+    X_test = prepare_data(test['data'])
+    # y_test = prepare_labels(test['labels'], num_classes)
+    y_test = np.asarray(test['labels'])
 
-    return (train_x, train_y, train_samples, test_x, test_y, test_samples)
+    # Number of classes:
+    num_classes = len(np.unique(y_train))
 
+    return (X_train, y_train, X_test, y_test, num_classes)
 
 
 def prepare_data(data):
@@ -96,12 +96,12 @@ def prepare_data(data):
     # new_data = remove_empty_timesteps(new_data)
 
     # Map 3rd dimension to a dict:
-    new_data = map_to_flat(new_data)
+    new_data = __map_to_flat(new_data)
 
     return new_data
 
 
-def map_to_json(data):
+def __map_to_json(data):
     """
     Map to a JSON representation with the following layout:
     `{ 'x': 0.0, 'y': 0.0, 'precision': 0.0 }`
@@ -118,7 +118,7 @@ def map_to_json(data):
         for N in data])  # 'batch' in data
 
 
-def map_to_flat_with_precision(data):
+def __map_to_flat_with_precision(data):
     """
     Map to a flat representation, where the coordinates X, Y, 
     and Precision are concatenated in this sequence.
@@ -133,7 +133,7 @@ def map_to_flat_with_precision(data):
         for N in data])     # 'batch' in data
 
 
-def map_to_flat(data):
+def __map_to_flat(data):
     """
     Map to a flat representation, where the coordinates X, Y, 
     and Precision are concatenated in this sequence.
@@ -149,7 +149,7 @@ def map_to_flat(data):
         for N in data])     # 'batch' in data
 
 
-def remove_empty_timesteps(data):
+def __remove_empty_timesteps(data):
     """
     Remove empty frames from data
     """
@@ -157,5 +157,9 @@ def remove_empty_timesteps(data):
         for T in N if np.count_nonzero(T) > 0]  # 'timestep' in batch
         for N in data])                         # 'batch' in data
 
+
 def prepare_labels(labels, num_classes):
-    return np.asarray(tfutils.to_categorical(labels, num_classes=num_classes))
+    mlb = MultiLabelBinarizer()
+    mlb.fit([list(range(1, num_classes + 1))])
+    return mlb.transform([[x] for x in labels])
+    # return np.asarray(tensorflow.keras.utils.to_categorical(labels, num_classes=num_classes))
