@@ -4,8 +4,6 @@ from __future__ import (absolute_import, division, print_function,
 import data_loader as dl
 import model as m
 import tuner as t
-from collections import Counter
-import numpy as np
 
 
 def run():
@@ -17,7 +15,7 @@ def run():
     parameters = dict(
         batch_size=[8],
         # batch_size=[8, 16],
-        epochs=[2],
+        epochs=[10],
         # optimizer=['SGD', 'RMSprop', 'Adagrad', 'Adadelta', 'Adam', 'Adamax', 'Nadam'],
         # optimizer=['adam'],
         # loss=['sparse_categorical_crossentropy'],
@@ -29,7 +27,7 @@ def run():
 
     # Exception has occurred: ValueError
     # Classification metrics can't handle a mix of multilabel-indicator and binary targets
-    t.tune_hyperparameters(m.build, parameters, X_train, y_train, X_test, y_test)
+    t.tune_hyperparameters(m.build, parameters, X_train, y_train, X_test, y_test, log=False)
 
     # Train model:
     # Losses:

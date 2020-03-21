@@ -3,7 +3,7 @@ from os.path import isdir
 import numpy as np
 
 import utils as u
-import tensorflow
+# import tensorflow
 
 from sklearn.preprocessing import MultiLabelBinarizer
 

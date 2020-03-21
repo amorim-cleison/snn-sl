@@ -2,7 +2,6 @@ import collections
 
 import numpy as np
 import tensorflow as tf
-from keras import losses, metrics, optimizers
 from tensorflow.python.keras import layers
 from tensorflow.python.keras.engine.training import Model
 
@@ -20,12 +19,16 @@ def build(batch_size,
     # (batch, timesteps, { joints, dimensions })
     # (87, 60, { 27, 3 })
 
+    samples, timesteps, features = 87, 60, 54
+
     model = tf.keras.Sequential()
 
-    # TODO: try to skip invalid timesteps with Masking
-    # model.add(layers.Masking())
+    # model.add(layers.BatchNormalization(axis=1))
 
-    # model.add(layers.Embedding(input_dim=num_classes, output_dim=2745))
+    # TODO: try to skip invalid timesteps with Masking
+    model.add(layers.Masking(mask_value=0., input_shape=(timesteps, features)))
+
+    # model.add(layers.Embedding(input_dim=(60, 54), output_dim=16, mask_zero=True))
 
     # model.add(layers.Dense(24, input_dim=batch_size))
 
@@ -33,10 +36,11 @@ def build(batch_size,
     # model.add(layers.LSTM(64, return_sequences=False,
     #                dropout=0.1, recurrent_dropout=0.1))
     model.add(layers.LSTM(32, return_sequences=True))
-
     model.add(layers.LSTM(128, return_sequences=True))
-
     model.add(layers.LSTM(256))
+
+    # model.add(layers.Activation('relu'))
+    model.add(layers.Dropout(0.5))
 
     # model.add(layers.RNN(nlstm.NestedLSTMCell(64, depth=2, input_shape=(60, 27, 3))))
 
