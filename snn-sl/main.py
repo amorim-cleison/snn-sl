@@ -8,7 +8,7 @@ import tuner as t
 
 def run():
     # Load data:
-    data_folder = '../../data/asllvd-skeleton-20/normalized/'
+    data_folder = '../../../data/asllvd-skeleton-20/normalized/'
     X_train, y_train, X_test, y_test, num_classes = dl.load_data(data_folder)
     
     # Tune model:
