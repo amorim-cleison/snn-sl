@@ -4,7 +4,7 @@ from __future__ import (absolute_import, division, print_function,
 import data_loader as dl
 import model as m
 import tuner as t
-
+import random
 
 def run():
     # Load data:
@@ -25,7 +25,9 @@ def run():
         # momentum = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9]
         )
 
-    # Exception has occurred: ValueError
+    # # Visualize intermediate layers:
+    # m.visualize_intermediate_layers(m.build(8, num_classes), random.choice(X_train))
+
     # Classification metrics can't handle a mix of multilabel-indicator and binary targets
     t.tune_hyperparameters(m.build, parameters, X_train, y_train, X_test, y_test, log=False)
 

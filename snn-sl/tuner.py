@@ -52,10 +52,9 @@ def tune_hyperparameters(build_fn,
         param_grid=parameters,
         n_jobs=-1,
         cv=cross_validation,
-        verbose=100,
+        verbose=(100 if log else 0),
         # scoring=score,
-        return_train_score=False,
-        refit=True
+        return_train_score=False
         )
 
     # Fit search:
