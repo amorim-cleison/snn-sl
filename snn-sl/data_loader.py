@@ -65,17 +65,17 @@ def load_data(path: str):
         data_path.format(path, 'test'), label_path.format(path, 'test'))
 
     X_train = train['data']
-    y_train = np.asanyarray(train['labels'])
+    y_train = train['labels']
     X_test = test['data']
-    y_test = np.asanyarray(test['labels'])
+    y_test = test['labels']
     num_classes = len(np.unique(y_train))
 
     return (X_train, y_train, X_test, y_test, num_classes)
 
 
-def prepare_data(X_train, y_train, X_test, y_test):
-    return (__prepare_data(X_train), y_train, 
-            __prepare_data(X_test), y_test)
+def prepare_data_and_label(X_train, y_train, X_test, y_test):
+    return (__prepare_data(X_train), __prepare_label(y_train), 
+            __prepare_data(X_test), __prepare_label(y_test))
 
 
 def __prepare_data(data):
@@ -120,6 +120,10 @@ def __prepare_data(data):
     #------------------------------------------------------------
 
     return new_data
+
+
+def __prepare_label(label):
+    return np.asarray(label)
 
 
 def __map_to_json(data):
@@ -178,9 +182,3 @@ def __remove_empty_timesteps(data):
         for T in N if np.count_nonzero(T) > 0]  # 'timestep' in batch
         for N in data])                         # 'batch' in data
 
-
-def __prepare_labels(labels, num_classes):
-    mlb = MultiLabelBinarizer()
-    mlb.fit([list(range(1, num_classes + 1))])
-    return mlb.transform([[x] for x in labels])
-    # return np.asarray(tensorflow.keras.utils.to_categorical(labels, num_classes=num_classes))

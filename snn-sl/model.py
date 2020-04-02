@@ -25,7 +25,7 @@ def build(num_classes,
     model = __build_agc_lstm(input_shape, num_classes)
 
     # Compilation:
-    model.build(input_shape=input_shape)
+    # model.build(input_shape=input_shape)
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
     model.summary()
     # checkpointer = ModelCheckpoint(filepath=data_path + '/model-{epoch:02d}.hdf5', verbose=1)
@@ -116,11 +116,27 @@ def __build_agc_lstm(input_shape, num_classes):
     """
     model_layers = [
         layers.Input(shape=input_shape),
-        layers.Reshape((60, 81)),
-        layers.Dense(81),
-        # FA
+        layers.TimeDistributed(layers.Flatten()),
+        
         layers.Masking(mask_value=0.),
+
+        layers.Dense(64),
+        # FA
         layers.LSTM(128, return_sequences=True),
+
+        # TAP:
+        layers.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
+        __acg_lstm_cell(128, return_sequences=False, name="agc_lstm_1"),
+
+        # TAP:
+        # layers.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
+        # __acg_lstm_cell(256, return_sequences=True, name="agc_lstm_2"),
+
+        # TAP:
+        # layers.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
+        # __acg_lstm_cell(256, return_sequences=False, name="agc_lstm_3"),
+
+
         # layers.Convolution2D(
         #     filters=128,
         #     kernel_size=3,
@@ -136,6 +152,12 @@ def __build_agc_lstm(input_shape, num_classes):
         layers.Activation('softmax')
     ]
     return tf.keras.Sequential(model_layers, "agc_lstm")
+
+def __acg_lstm_cell(units, return_sequences, name=None) -> Model:
+    return tf.keras.Sequential([
+        layers.Dense(64),
+        layers.LSTM(units, return_sequences=return_sequences),
+    ], name)
 
 
 def __build_conv_lstm(batch_size, num_classes):

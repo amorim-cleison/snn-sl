@@ -12,7 +12,7 @@ def run():
     # Load data:
     data_folder = '../../../data/asllvd-skeleton-20/normalized/'
     X_train, y_train, X_test, y_test, num_classes = dl.load_data(data_folder)
-    X_train, y_train, X_test, y_test = dl.prepare_data(X_train, y_train, X_test, y_test)
+    X_train, y_train, X_test, y_test = dl.prepare_data_and_label(X_train, y_train, X_test, y_test)
 
     input_shape=X_train.shape[1:]
     print("Input shape: ", input_shape)
@@ -32,16 +32,16 @@ def run():
         )
 
     # Visualize intermediate layers:
-    v.plot_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
+    # v.plot_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
 
     # Visualize intermediate layers:
     # v.print_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
 
     # Classification metrics can't handle a mix of multilabel-indicator and binary targets
-    # t.tune_hyperparameters( m.build, parameters, 
-    #                         X_train, y_train, 
-    #                         X_test, y_test, 
-    #                         log=True)
+    t.tune_hyperparameters( m.build, parameters, 
+                            X_train, y_train, 
+                            X_test, y_test, 
+                            log=True)
 
     # Train model:
     # Losses:

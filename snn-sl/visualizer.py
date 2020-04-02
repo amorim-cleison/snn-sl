@@ -50,6 +50,7 @@ def __plot_activation(layer_name, layer_index, layer_activation):
         plt.grid(False)
         plt.imshow(display_grid, aspect='auto', cmap='viridis')
         # plt.savefig("%03.0f_%s.png" % (layer_index, layer_name))
+        plt.plot()
         plt.show()
 
 
