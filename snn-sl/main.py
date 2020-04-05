@@ -31,6 +31,9 @@ def run():
         # momentum = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9]
         )
 
+    # Visualize model:
+    # v.plot_model_to_img(m.build(num_classes, input_shape))
+    
     # Visualize intermediate layers:
     # v.plot_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
 
@@ -61,12 +64,14 @@ def run():
 
 
 def train(model, X_train, y_train, X_test, y_test, verbose=1):
-    model.fit(x=X_train, y=y_train, validation_data=(X_test, y_test), epochs=10, verbose=verbose)
+    history = model.fit(x=X_train, y=y_train, validation_data=(X_test, y_test), epochs=10, verbose=verbose)
 
     # Evaluate:
     result = model.predict(X_train, batch_size=8, verbose=verbose)
     for value in result:
         print('%.1f' % np.argmax(value))
+
+    v.plot_training_history(history)
 
     # result = model.predict_classes(X_train, verbose=verbose)
     # for value in result:

@@ -114,9 +114,9 @@ def __prepare_data(data):
     #------------------------------------------------------------
     # PREPARATION FOR 'AGC LSTM':
     # (N, C, T, V, M) / (87, 3, 60, 27, 1) to
-    # (N, T, M, V, C) / (87, 60, 27, 3, 1), 
-    new_data = np.moveaxis(new_data, [1, 3], [3, 2])
-    new_data = np.squeeze(new_data)
+    # (N, T, M, V, C) / (87, 60, 1, 27, 3), 
+    new_data = np.moveaxis(new_data, [1, 2, 4], [4, 1, 2])
+    # new_data = np.squeeze(new_data)
     #------------------------------------------------------------
 
     return new_data

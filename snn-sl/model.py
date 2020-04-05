@@ -116,25 +116,35 @@ def __build_agc_lstm(input_shape, num_classes):
     """
     model_layers = [
         layers.Input(shape=input_shape),
-        layers.TimeDistributed(layers.Flatten()),
+        # layers.TimeDistributed(layers.Flatten()),
         
         layers.Masking(mask_value=0.),
 
-        layers.Dense(64),
+        # layers.Dense(64),
         # FA
-        layers.LSTM(128, return_sequences=True),
-
-        # TAP:
-        layers.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
-        __acg_lstm_cell(128, return_sequences=False, name="agc_lstm_1"),
+        # layers.LSTM(128, return_sequences=True),
 
         # TAP:
         # layers.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
-        # __acg_lstm_cell(256, return_sequences=True, name="agc_lstm_2"),
+
+        # AGC LSTM 1:
+        __acg_lstm_cell(40, return_sequences=True, name="agc_lstm_1"),
 
         # TAP:
         # layers.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
-        # __acg_lstm_cell(256, return_sequences=False, name="agc_lstm_3"),
+        __acg_lstm_cell(40, return_sequences=True, name="agc_lstm_2"),
+
+        # TAP:
+        # layers.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
+        __acg_lstm_cell(40, return_sequences=True, name="agc_lstm_3"),
+
+
+        layers.Conv3D(
+                filters=1, 
+                kernel_size=(3, 3, 3),
+                activation='sigmoid',
+                padding='same', 
+                data_format='channels_last'),
 
 
         # layers.Convolution2D(
@@ -147,6 +157,9 @@ def __build_agc_lstm(input_shape, num_classes):
         # Skip invalid timesteps with Masking
         # layers.BatchNormalization(axis=1),
 
+        layers.TimeDistributed(layers.Flatten()),
+        layers.Flatten(),
+
         # Output layer:
         layers.Dense(num_classes),
         layers.Activation('softmax')
@@ -154,10 +167,22 @@ def __build_agc_lstm(input_shape, num_classes):
     return tf.keras.Sequential(model_layers, "agc_lstm")
 
 def __acg_lstm_cell(units, return_sequences, name=None) -> Model:
-    return tf.keras.Sequential([
-        layers.Dense(64),
-        layers.LSTM(units, return_sequences=return_sequences),
-    ], name)
+    agc_lstm_layers = [
+        layers.ConvLSTM2D(
+            filters=units,
+            return_sequences=return_sequences,
+            kernel_size=(3, 3),
+            padding='same',
+            data_format='channels_last'),
+        layers.Dropout(0.5),
+        layers.BatchNormalization()
+    ]
+    # Accuracy: ~ 0.55
+    # agc_lstm_layers = [
+    #     layers.Dense(64),
+    #     layers.LSTM(units, return_sequences=return_sequences),
+    # ]
+    return tf.keras.Sequential(agc_lstm_layers, name)
 
 
 def __build_conv_lstm(batch_size, num_classes):
