@@ -28,7 +28,8 @@ def run():
         # metrics=[['accuracy']],
         num_classes=[num_classes],
         # learn_rate = [0.001, 0.01, 0.1, 0.2, 0.3],
-        # momentum = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9]
+        # momentum = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9],
+        num_hidden_layers=[2, 4, 6, 8, 10]
         )
 
     # Visualize model:
