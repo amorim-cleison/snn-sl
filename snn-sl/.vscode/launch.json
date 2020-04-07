@@ -9,6 +9,10 @@
             "type": "python",
             "request": "launch",
             "program": "main.py",
+            "args": [
+                "--device=cpu", 
+                "--num_gpus=0"
+            ],
             "console": "integratedTerminal"
         }
     ]
