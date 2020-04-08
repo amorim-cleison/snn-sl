@@ -8,18 +8,15 @@ from tensorflow.python.keras.engine.training import Model
 
 def build(num_classes,
           input_shape,
-          num_hidden_layers,
           optimizer='adam',
           loss='sparse_categorical_crossentropy',
           metrics=['accuracy']):
     """
     Build architecture
-    """
-    # Conv LSTM:
-    model = conv_lstm(input_shape, num_classes)
 
-    # Convolutional LSTM:
-    # model = convolutional_lstm(input_shape, num_classes, num_hidden_layers)
+    Input shape: (87, 3, 60, 27, 1)
+    """
+    model = agc_lstm(input_shape, num_classes)
 
     # Compilation:
     # model.build(input_shape=input_shape)
@@ -30,66 +27,47 @@ def build(num_classes,
     return model
 
 
-def agc_lstm(input_shape, num_classes, num_hidden_layers):
+def agc_lstm(input_shape, num_classes):
     """
     Build architecture
     """
     layers = [
         l.Input(shape=input_shape),
-        # l.TimeDistributed(l.Flatten()),
+        l.Permute((2, 4, 3, 1)),        # Input transformet to 'channels_last' (None, 60, 1, 27, 3)
+        l.TimeDistributed(l.Flatten()), # Question: what is 'FC' layer here in paper?
+        # FA                            # TODO: implement feature augmentation
         l.Masking(mask_value=0.),
+        l.LSTM(40, return_sequences=True),
+        
+        l.AveragePooling1D(pool_size=3, strides=1, data_format='channels_last', name='avg_pool_1'),
+        agc_lstm_cell(10, 'agc_lstm_1', True),
 
-        # l.Dense(64),
-        # FA
-        # l.LSTM(128, return_sequences=True),
+        l.AveragePooling1D(pool_size=3, strides=1, data_format='channels_last', name='avg_pool_2'),
+        agc_lstm_cell(10, 'agc_lstm_2', True),
 
-        # TAP:
-        # l.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
+        l.AveragePooling1D(pool_size=3, strides=1, data_format='channels_last', name='avg_pool_3'),
+        agc_lstm_cell(10, 'agc_lstm_3', False),
 
-        # AGC LSTM 1:
-        # __acg_lstm_cell(40, return_sequences=True, name="agc_lstm_1"),
-
-        # TAP:
-        # l.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
-        # __acg_lstm_cell(40, return_sequences=True, name="agc_lstm_2"),
-
-        # TAP:
-        # l.AveragePooling1D(pool_size=3, strides=3, data_format='channels_last'),
-        # __acg_lstm_cell(40, return_sequences=True, name="agc_lstm_3"),
-
-        # __acg_lstm_cell(40, return_sequences=True, name="agc_lstm_4"),
-        l.Conv3D(
-            filters=1,
-            kernel_size=(3, 3, 3),
-            activation='sigmoid',
-            padding='same',
-            data_format='channels_last'),
-
-        # l.Convolution2D(
-        #     filters=128,
-        #     kernel_size=3,
-        #     strides=1,
-        #     padding='same',
-        #     data_format="channels_last"),
-        # l.Flatten(data_format="channels_last", input_shape=input_shape),
-        # Skip invalid timesteps with Masking
-        # l.BatchNormalization(axis=1),
-
-        # l.TimeDistributed(l.Flatten()),
-        l.Flatten(),
-
-        # Output layer:
         l.Dense(num_classes),
         l.Activation('softmax')
     ]
 
-    for idx in range(0, num_hidden_layers):
-        layers.insert(
-            2 + idx,
-            __acg_lstm_cell(
-                40, return_sequences=True, name="agc_lstm_%0.0f" % (idx + 1)))
+    # for idx in range(0, num_hidden_layers):
+    #     layers.insert(
+    #         2 + idx,
+    #         __acg_lstm_cell(
+    #             40, return_sequences=True, name="agc_lstm_%0.0f" % (idx + 1)))
 
     return tf.keras.Sequential(layers, "agc_lstm")
+
+
+def agc_lstm_cell(filters, name='agc_lstm_cell', return_sequences=True):
+    layers = [
+        l.Conv1D(int(filters * 0.5), kernel_size=3),        # TODO: implement GraphConvLSTM
+        l.LSTM(filters, return_sequences=return_sequences)  # TODO: implement GraphConvLSTM
+    ]
+    return tf.keras.Sequential(layers, name)
+
 
 
 def conv_lstm(input_shape, num_classes):
@@ -132,7 +110,7 @@ def conv_lstm(input_shape, num_classes):
 
     merged = l.Concatenate()(outputs)
 
-    seq = Model(inputs=trailer_input, outputs=merged, name='Model')
+    seq = Model(inputs=trailer_input, outputs=merged, name='conv_lstm')
 
     return seq
 
