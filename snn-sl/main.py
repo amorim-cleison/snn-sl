@@ -8,13 +8,19 @@ import tuner as t
 import visualizer as v
 import random
 
+# Configurations ----------------------------
+debug = True
+data_folder = '../../../data/asllvd-skeleton-20/normalized/'
+# -------------------------------------------
+
+
 def run():
     # Load data:
-    data_folder = '../../../data/asllvd-skeleton-20/normalized/'
     X_train, y_train, X_test, y_test, num_classes = dl.load_data(data_folder)
-    X_train, y_train, X_test, y_test = dl.prepare_data_and_label(X_train, y_train, X_test, y_test)
+    X_train, y_train, X_test, y_test = dl.prepare_data_and_label(
+        X_train, y_train, X_test, y_test)
 
-    input_shape=X_train.shape[1:]
+    input_shape = X_train.shape[1:]
     print("Input shape: ", input_shape)
 
     # Tune model:
@@ -29,11 +35,11 @@ def run():
         num_classes=[num_classes],
         # learn_rate = [0.001, 0.01, 0.1, 0.2, 0.3],
         # momentum = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9],
-        )
+    )
 
     # Visualize model:
     # v.plot_model_to_img(m.build(num_classes, input_shape))
-    
+
     # Visualize intermediate layers:
     # v.plot_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
 
@@ -41,10 +47,8 @@ def run():
     # v.print_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
 
     # Classification metrics can't handle a mix of multilabel-indicator and binary targets
-    t.tune_hyperparameters( m.build, parameters, 
-                            X_train, y_train, 
-                            X_test, y_test, 
-                            log=True)
+    t.tune_hyperparameters(
+        m.build, parameters, X_train, y_train, X_test, y_test, log=True)
 
     # Train model:
     # Losses:
@@ -64,7 +68,12 @@ def run():
 
 
 def train(model, X_train, y_train, X_test, y_test, verbose=1):
-    history = model.fit(x=X_train, y=y_train, validation_data=(X_test, y_test), epochs=10, verbose=verbose)
+    history = model.fit(
+        x=X_train,
+        y=y_train,
+        validation_data=(X_test, y_test),
+        epochs=10,
+        verbose=verbose)
 
     # Evaluate:
     result = model.predict(X_train, batch_size=8, verbose=verbose)
@@ -77,5 +86,8 @@ def train(model, X_train, y_train, X_test, y_test, verbose=1):
     # for value in result:
     #     print('%.1f' % value)
 
+def configure():
+    pass
 
+configure()
 run()

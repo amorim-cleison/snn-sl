@@ -30,44 +30,81 @@ def build(num_classes,
 def agc_lstm(input_shape, num_classes):
     """
     Build architecture
+
+    Partial results:
+    loss: 1.7926 - accuracy: 0.4483 - val_loss: 2.8913 - val_accuracy: 0.2273
+
     """
-    layers = [
-        l.Input(shape=input_shape),
-        l.Permute((2, 4, 3, 1)),        # Input transformet to 'channels_last' (None, 60, 1, 27, 3)
-        l.TimeDistributed(l.Flatten()), # Question: what is 'FC' layer here in paper?
-        # FA                            # TODO: implement feature augmentation
-        l.Masking(mask_value=0.),
-        l.LSTM(40, return_sequences=True),
-        
-        l.AveragePooling1D(pool_size=3, strides=1, data_format='channels_last', name='avg_pool_1'),
-        agc_lstm_cell(10, 'agc_lstm_1', True),
+    input = l.Input(shape=input_shape)
 
-        l.AveragePooling1D(pool_size=3, strides=1, data_format='channels_last', name='avg_pool_2'),
-        agc_lstm_cell(10, 'agc_lstm_2', True),
+    permute = l.Permute((2, 4, 3, 1))(
+        input)  # Transformed to 'channels_last' (None, 60, 1, 27, 3)
+    flatten = l.TimeDistributed(
+        l.Flatten(),
+        name='flatten')(permute)  # Question: what is 'FC' layer here in paper?
 
-        l.AveragePooling1D(pool_size=3, strides=1, data_format='channels_last', name='avg_pool_3'),
-        agc_lstm_cell(10, 'agc_lstm_3', False),
+    fa = l.Lambda(agc_lstm_feature_augmentation, name='fa')(flatten)
 
-        l.Dense(num_classes),
-        l.Activation('softmax')
-    ]
+    mask = l.Masking(mask_value=0.)(fa)
 
-    # for idx in range(0, num_hidden_layers):
-    #     layers.insert(
-    #         2 + idx,
-    #         __acg_lstm_cell(
-    #             40, return_sequences=True, name="agc_lstm_%0.0f" % (idx + 1)))
+    normalize = l.BatchNormalization(axis=-1)(mask)
 
-    return tf.keras.Sequential(layers, "agc_lstm")
+    lstm_1 = l.LSTM(40, return_sequences=True)(normalize)
+
+    tap_1 = l.AveragePooling1D(
+        pool_size=3, strides=1, data_format='channels_last',
+        name='tap_1')(lstm_1)
+    agc_lstm_1 = agc_lstm_cell(
+        tap_1, filters=40, name='agc_lstm_1', return_sequences=True)
+
+    tap_2 = l.AveragePooling1D(
+        pool_size=3, strides=1, data_format='channels_last',
+        name='tap_2')(agc_lstm_1)
+    agc_lstm_2 = agc_lstm_cell(
+        tap_2, filters=40, name='agc_lstm_2', return_sequences=True)
+
+    tap_3 = l.AveragePooling1D(
+        pool_size=3, strides=1, data_format='channels_last',
+        name='tap_3')(agc_lstm_2)
+    agc_lstm_3 = agc_lstm_cell(
+        tap_3, filters=40, name='agc_lstm_3', return_sequences=False)
+
+    fc = l.Dense(num_classes)(agc_lstm_3)
+    activation = l.Activation('softmax')(fc)
+
+    return Model(inputs=input, outputs=activation, name='agc_lstm')
 
 
-def agc_lstm_cell(filters, name='agc_lstm_cell', return_sequences=True):
-    layers = [
-        l.Conv1D(int(filters * 0.5), kernel_size=3),        # TODO: implement GraphConvLSTM
-        l.LSTM(filters, return_sequences=return_sequences)  # TODO: implement GraphConvLSTM
-    ]
-    return tf.keras.Sequential(layers, name)
+def agc_lstm_cell(input, filters, name='agc_lstm_cell', return_sequences=True):
+    conv_1 = l.Conv1D(
+        int(filters * 0.5),
+        kernel_size=3, 
+        name='{}_conv_1'.format(name))(input)  # TODO: implement GraphConvLSTM
+    lstm_1 = l.LSTM(
+        filters, return_sequences=return_sequences,
+        name='{}_lstm_1'.format(name))(conv_1)  # TODO: implement GraphConvLSTM
+    return lstm_1
 
+
+@tf.function
+def agc_lstm_feature_augmentation(input):
+    """
+    'Concatenate spatial feature and feature difference between two consecutive frames 
+    to compose an augmented feature.'
+    (2019 - Si et al - An Attention Enhanced Graph Convolutional 
+    LSTM Network for Skeleton-Based Action Recognition)
+    """
+    # tf.config.experimental_run_functions_eagerly(True)
+    # assert tf.executing_eagerly()
+
+    # Difference between consecutive frames:
+    rolled = tf.roll(input, shift=-1, axis=1)
+    diff = tf.subtract(rolled, input)
+    
+    # Concatenate spatial feature and feature difference:
+    concat = tf.concat([input, diff], axis=-1)
+    
+    return concat
 
 
 def conv_lstm(input_shape, num_classes):
@@ -78,8 +115,7 @@ def conv_lstm(input_shape, num_classes):
     Results:
     loss: 2.9957 - accuracy: 0.0862 - val_loss: 13.3078 - val_accuracy: 0.0455
     """
-    trailer_input = l.Input(
-        shape=input_shape, name='trailer_input')
+    trailer_input = l.Input(shape=input_shape, name='trailer_input')
     # shape = (60, 3, 1, 27)
     # permutation = l.Permute((1, 4, 2, 3))(trailer_input)
     first_ConvLSTM = l.ConvLSTM2D(
@@ -106,7 +142,10 @@ def conv_lstm(input_shape, num_classes):
         pool_size=(1, 3, 3), padding='same',
         data_format='channels_last')(second_BatchNormalization)
 
-    outputs = [conv_lstm_branch(second_Pooling, 'cat_{}'.format(c)) for c in range(num_classes)]
+    outputs = [
+        conv_lstm_branch(second_Pooling, 'cat_{}'.format(c))
+        for c in range(num_classes)
+    ]
 
     merged = l.Concatenate()(outputs)
 
