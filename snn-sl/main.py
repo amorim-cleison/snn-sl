@@ -1,16 +1,19 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import data_loader as dl
-import model as m
-import tuner as t
-import visualizer as v
 import random
+
+import numpy as np
+
+import data_loader as dl
+from model_tuner import ModelTuner
+from model_visualizer import ModelVisualizer
+from models import *
 
 # Configurations ----------------------------
 debug = True
 data_folder = '../../../data/asllvd-skeleton-20/normalized/'
+
 # -------------------------------------------
 
 
@@ -23,71 +26,111 @@ def run():
     input_shape = X_train.shape[1:]
     print("Input shape: ", input_shape)
 
-    # Tune model:
+    architecture = AttentionGraphConvLSTM(input_shape, num_classes)
+    
+    tune([architecture], X_train, y_train, X_test, y_test, num_classes,
+         input_shape)
+
+    # visualize(architecture, X_train)
+
+    # train(architecture, X_train, y_train, X_test, y_test)
+
+
+def tune(architectures, X_train, y_train, X_test, y_test, num_classes,
+         input_shape):
+    """
+    Tune model hyperparameters
+    """
     parameters = dict(
-        input_shape=[input_shape],
-        # batch_size=[8, 16],
+        architecture=architectures,
         epochs=[10],
+        # batch_size=[8, 16],
         # optimizer=['SGD', 'RMSprop', 'Adagrad', 'Adadelta', 'Adam', 'Adamax', 'Nadam'],
-        # optimizer=['adam'],
         # loss=['sparse_categorical_crossentropy'],
         # metrics=[['accuracy']],
-        num_classes=[num_classes],
         # learn_rate = [0.001, 0.01, 0.1, 0.2, 0.3],
         # momentum = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9],
     )
 
+    # Tune:
+    print("Tuning...")
+    tuner = ModelTuner()
+    best_history = tuner.tune_hyperparameters(
+        build_model, parameters, X_train, y_train, X_test, y_test, log=True)
+
+    # Plot history:
+    print("Plotting history...")
+    visualizer = ModelVisualizer()
+    visualizer.plot_training_history(best_history)
+
+
+def visualize(architecture: BaseModel, X_train):
+    """
+    Visualize model 
+    """
+    model = architecture.build()
+    visualizer = ModelVisualizer()
+
     # Visualize model:
-    # v.plot_model_to_img(m.build(num_classes, input_shape))
+    visualizer.plot_model_to_img(model)
 
     # Visualize intermediate layers:
-    # v.plot_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
+    visualizer.plot_intermediate_layers(model, random.choice(X_train))
 
     # Visualize intermediate layers:
-    # v.print_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
+    visualizer.print_intermediate_layers(model, random.choice(X_train))
 
-    # Classification metrics can't handle a mix of multilabel-indicator and binary targets
-    t.tune_hyperparameters(
-        m.build, parameters, X_train, y_train, X_test, y_test, log=True)
 
-    # Train model:
+def train(architecture: BaseModel, X_train, y_train, X_test, y_test,
+          verbose=1):
+    """
+    Train the model
+    """
     # Losses:
-    #   'binary_crossentropy',
-    #   'categorical_crossentropy',
-    #   'sparse_categorical_crossentropy'
+    #   'binary_crossentropy', 'categorical_crossentropy', 'sparse_categorical_crossentropy'
     # Metrics:
-    #   'categorical_accuracy'
-    #   'accuracy'
-    # model = m.build(
-    #     batch_size=batch_size,
-    #     num_classes=num_classes,
-    #     loss='categorical_crossentropy',
-    #     metrics=['accuracy'])
-    # result = train(model, X_train, y_train)
-    # print()
+    #   'categorical_accuracy', 'accuracy'
+    model = build_model(
+        architecture
+    )  #, loss='categorical_crossentropy', metrics=['accuracy'])
 
-
-def train(model, X_train, y_train, X_test, y_test, verbose=1):
+    # Train:
+    print("Training...")
     history = model.fit(
         x=X_train,
         y=y_train,
         validation_data=(X_test, y_test),
-        epochs=10,
+        epochs=50,
         verbose=verbose)
 
+    # Plot history:
+    print("Plotting history...")
+    visualizer = ModelVisualizer()
+    visualizer.plot_training_history(history)
+
     # Evaluate:
-    result = model.predict(X_train, batch_size=8, verbose=verbose)
-    for value in result:
-        print('%.1f' % np.argmax(value))
-
-    v.plot_training_history(history)
-
-    # result = model.predict_classes(X_train, verbose=verbose)
+    # result = model.predict(X_train, batch_size=8, verbose=verbose)
     # for value in result:
-    #     print('%.1f' % value)
+    #     print('%.1f' % np.argmax(value))
+
+
+def build_model(architecture: BaseModel,
+                optimizer='adam',
+                loss='sparse_categorical_crossentropy',
+                metrics=['accuracy']):
+    """
+    Build architecture
+    """
+    model = architecture.build()
+    model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+    model.summary()
+    # checkpointer = ModelCheckpoint(filepath=data_path + '/model-{epoch:02d}.hdf5', verbose=1)
+    return model
+
 
 def configure():
     pass
+
 
 configure()
 run()
