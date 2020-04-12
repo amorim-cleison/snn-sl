@@ -1,16 +1,20 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import numpy as np
-import data_loader as dl
-import model as m
-import tuner as t
-import visualizer as v
 import random
+
+import numpy as np
+
+import data_loader as dl
+from model_tuner import ModelTuner
+import visualizer as v
+from model_builder import ModelBuilder
+from models import *
 
 # Configurations ----------------------------
 debug = True
 data_folder = '../../../data/asllvd-skeleton-20/normalized/'
+
 # -------------------------------------------
 
 
@@ -25,30 +29,28 @@ def run():
 
     # Tune model:
     parameters = dict(
-        input_shape=[input_shape],
-        # batch_size=[8, 16],
+        architecture=[AttentionGraphConvLSTM(input_shape, num_classes)],
         epochs=[10],
+        # batch_size=[8, 16],
         # optimizer=['SGD', 'RMSprop', 'Adagrad', 'Adadelta', 'Adam', 'Adamax', 'Nadam'],
-        # optimizer=['adam'],
         # loss=['sparse_categorical_crossentropy'],
         # metrics=[['accuracy']],
-        num_classes=[num_classes],
         # learn_rate = [0.001, 0.01, 0.1, 0.2, 0.3],
         # momentum = [0.0, 0.2, 0.4, 0.6, 0.8, 0.9],
     )
 
+    tuner = ModelTuner()
+    tuner.tune_hyperparameters(
+        build_model, parameters, X_train, y_train, X_test, y_test, log=True)
+
     # Visualize model:
-    # v.plot_model_to_img(m.build(num_classes, input_shape))
+    # v.plot_model_to_img(builder.build(num_classes, input_shape))
 
     # Visualize intermediate layers:
-    # v.plot_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
+    # v.plot_intermediate_layers(builder.build(num_classes, input_shape), random.choice(X_train))
 
     # Visualize intermediate layers:
-    # v.print_intermediate_layers(m.build(num_classes, input_shape), random.choice(X_train))
-
-    # Classification metrics can't handle a mix of multilabel-indicator and binary targets
-    t.tune_hyperparameters(
-        m.build, parameters, X_train, y_train, X_test, y_test, log=True)
+    # v.print_intermediate_layers(builder.build(num_classes, input_shape), random.choice(X_train))
 
     # Train model:
     # Losses:
@@ -59,12 +61,24 @@ def run():
     #   'categorical_accuracy'
     #   'accuracy'
     # model = m.build(
-    #     batch_size=batch_size,
-    #     num_classes=num_classes,
     #     loss='categorical_crossentropy',
     #     metrics=['accuracy'])
     # result = train(model, X_train, y_train)
     # print()
+
+
+def build_model(architecture: BaseModel,
+                optimizer='adam',
+                loss='sparse_categorical_crossentropy',
+                metrics=['accuracy']):
+    """
+    Build architecture
+    """
+    model = architecture.build()
+    model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+    model.summary()
+    # checkpointer = ModelCheckpoint(filepath=data_path + '/model-{epoch:02d}.hdf5', verbose=1)
+    return model
 
 
 def train(model, X_train, y_train, X_test, y_test, verbose=1):
@@ -86,8 +100,10 @@ def train(model, X_train, y_train, X_test, y_test, verbose=1):
     # for value in result:
     #     print('%.1f' % value)
 
+
 def configure():
     pass
+
 
 configure()
 run()
