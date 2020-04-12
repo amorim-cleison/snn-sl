@@ -52,7 +52,7 @@ class ModelTuner():
             cv=cross_validation,
             verbose=(100 if log else 0),
             # scoring=score,
-            return_train_score=True)
+            return_train_score=False)
 
         # Fit search:
         search.fit(
