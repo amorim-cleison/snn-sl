@@ -1,12 +1,11 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras import layers as l
-from tensorflow.python.keras.engine.training import Model
+from keras import layers as l
 
-from models.base_model import BaseModel
+from .architecture import Architecture
 
 
-class ConvolutionalLSTM(BaseModel):
+class ConvolutionalLSTM(Architecture):
     """
     Convolutional LSTM implementation obtained from:
     https://keras.io/examples/conv_lstm/
@@ -46,10 +45,10 @@ class ConvolutionalLSTM(BaseModel):
                     return_sequences=True,
                     name="convolutional_lstm_cell_%0.0f" % (cell + 1)))
 
-        return tf.keras.Sequential(layers, self.name())
+        return super().build_sequential(layers)
 
     def convolutional_lstm_cell(self, units, return_sequences,
-                                name=None) -> Model:
+                                name=None):
         layers = [
             l.ConvLSTM2D(
                 filters=units,
@@ -60,4 +59,4 @@ class ConvolutionalLSTM(BaseModel):
             l.Dropout(0.5),
             l.BatchNormalization()
         ]
-        return tf.keras.Sequential(layers, name)
+        return super.__build_sequential(layers, name)

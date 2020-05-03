@@ -1,13 +1,11 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras import layers as l
-from tensorflow.python.keras.engine.training import Model
+from keras import layers as l
 
-from third_party.keras_dgl.layers import GraphConvLSTM
-from models.base_model import BaseModel
+from .architecture import Architecture
 
 
-class ConvLSTM(BaseModel):
+class ConvLSTM(Architecture):
     """
     ConvLSTM implementation obtained from:
     https://medium.com/neuronio/an-introduction-to-convlstm-55c9025563a7
@@ -16,6 +14,7 @@ class ConvLSTM(BaseModel):
     loss: 2.9957 - accuracy: 0.0862 - val_loss: 13.3078 - val_accuracy: 0.0455
  
     """
+
     def __init__(self, input_shape, num_classes):
         super().__init__(input_shape, num_classes)
 
@@ -54,9 +53,7 @@ class ConvLSTM(BaseModel):
 
         merged = l.Concatenate()(outputs)
 
-        seq = Model(inputs=trailer_input, outputs=merged, name=self.name())
-
-        return seq
+        return super().build_model(inputs=trailer_input, outputs=merged)
 
     def conv_lstm_branch(self, last_convlstm_layer, name):
         # branch_ConvLSTM = l.ConvLSTM2D(

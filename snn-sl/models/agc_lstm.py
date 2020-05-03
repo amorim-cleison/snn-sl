@@ -1,13 +1,17 @@
 import numpy as np
+import scipy.sparse as sp
 import tensorflow as tf
-from tensorflow.python.keras import layers as l
-from tensorflow.python.keras.engine.training import Model
+from keras import layers as l
+from keras import backend as K
 
-from third_party.keras_dgl.layers import GraphConvLSTM
-from models.base_model import BaseModel
+from third_party.keras_dgl import layers as dgl
+
+from .architecture import Architecture
+
+from layers import GraphConvLSTM
 
 
-class AttentionGraphConvLSTM(BaseModel):
+class AttentionGraphConvLSTM(Architecture):
     """
     AGC-LSTM implementation as presented in:
     'An Attention Enhanced Graph Convolutional LSTM Network for Skeleton-Based Action Recognition' 
@@ -18,18 +22,38 @@ class AttentionGraphConvLSTM(BaseModel):
 
     """
 
+    data_format = 'channels_last'
+    edges = [   (0, 1), (1, 2), (2, 12),
+                (0, 3), (3, 4), (4, 5),
+                (5, 6), (6, 7),
+                (5, 8), (8, 9),
+                (5, 10), (10, 11),
+                (5, 12), (12, 13),
+                (5, 14), (14, 15),
+                (12, 13), (13, 14),
+                (12, 15), (15, 16),
+                (12, 17), (17, 18),
+                (12, 19), (19, 20),
+                (12, 21), (21, 22)  ]
+
+
     def __init__(self, input_shape, num_classes):
         super().__init__(input_shape, num_classes)
 
     def build(self):
+        return self.build_seq()
+    """
+        data_format = 'channels_last'
+
         input = l.Input(shape=self.input_shape)
         permute = l.Permute((2, 4, 3, 1))(
             input)  # Transformed to 'channels_last' (None, 60, 1, 27, 3)
         flatten = l.TimeDistributed(
-            l.Flatten(), name='flatten')(
+            l.Flatten(data_format=data_format), name='flatten')(
                 permute)  # Question: what is 'FC' layer here in paper?
 
-        fa = l.Lambda(self.agc_lstm_feature_augmentation, name='fa')(flatten)
+        fa = l.Lambda(
+            self.agc_lstm_feature_augmentation, name='augmentation')(flatten)
 
         mask = l.Masking(mask_value=0.)(fa)
 
@@ -38,19 +62,19 @@ class AttentionGraphConvLSTM(BaseModel):
         lstm_1 = l.LSTM(40, return_sequences=True)(normalize)
 
         tap_1 = l.AveragePooling1D(
-            pool_size=3, strides=1, data_format='channels_last',
+            pool_size=3, strides=1, data_format=data_format,
             name='tap_1')(lstm_1)
         agc_lstm_1 = self.agc_lstm_cell(
             tap_1, filters=40, name='agc_lstm_1', return_sequences=True)
 
         tap_2 = l.AveragePooling1D(
-            pool_size=3, strides=1, data_format='channels_last',
+            pool_size=3, strides=1, data_format=data_format,
             name='tap_2')(agc_lstm_1)
         agc_lstm_2 = self.agc_lstm_cell(
             tap_2, filters=40, name='agc_lstm_2', return_sequences=True)
 
         tap_3 = l.AveragePooling1D(
-            pool_size=3, strides=1, data_format='channels_last',
+            pool_size=3, strides=1, data_format=data_format,
             name='tap_3')(agc_lstm_2)
         agc_lstm_3 = self.agc_lstm_cell(
             tap_3, filters=40, name='agc_lstm_3', return_sequences=False)
@@ -58,22 +82,113 @@ class AttentionGraphConvLSTM(BaseModel):
         fc = l.Dense(self.num_classes)(agc_lstm_3)
         activation = l.Activation('softmax')(fc)
 
-        return Model(inputs=input, outputs=activation, name=self.name())
+        return super().build_model(inputs=input, outputs=activation)
+    """
 
+    def build_seq(self):
+        # num_features = self.input_shape[-2]
+        # tmp = np.ones(shape=(1, num_features, num_features))
+        # graph_conv_tensor = K.constant(tmp, K.floatx())
+        
+        graph_conv_tensor = self.build_graph(self.edges, 27)
+
+        layers = [
+            # l.Input(shape=self.input_shape),
+            l.Permute((2, 4, 3, 1), input_shape=self.input_shape, name='permute'), # -> (60, 1, 27, 3) 
+            # l.Lambda(lambda x: K.squeeze(x, axis=2), name='squeeze'), 
+
+            # Input shape
+            # -  4D tensor with shape: (num_samples, timesteps, num_nodes, input_dim)
+            # Output shape
+            # - if `return_sequences`
+            #     - 4D tensor with shape: (num_samples, timesteps, num_nodes, output_dim)
+            # - else
+            #     - 4D tensor with shape: (num_samples, num_nodes, output_dim)
+            # graph_conv_tensor: [K_adjacency_power, num_graph_nodes, num_graph_nodes],
+            # dgl.GraphConvLSTM(40, graph_conv_tensor, name='gc_lstm'),
+
+            GraphConvLSTM(10, (1, 2), graph_conv_tensor),
+            l.Flatten(data_format=self.data_format, name='flatten'),
+            l.Dense(self.num_classes),
+            l.Activation('softmax')
+        ]
+        return super().build_sequential(layers)
+    
     def agc_lstm_cell(self,
                       input,
                       filters,
                       name='agc_lstm_cell',
                       return_sequences=True):
-        conv_1 = l.Conv1D(
-            int(filters * 0.5), kernel_size=3, name='{}_conv_1'.format(name))(
-                input)  # TODO: implement GraphConvLSTM
-        lstm_1 = l.LSTM(
-            filters,
-            return_sequences=return_sequences,
-            name='{}_lstm_1'.format(name))(
-                conv_1)  # TODO: implement GraphConvLSTM
-        return lstm_1
+        # conv_1 = l.Conv1D(
+        #     int(filters * 0.5), kernel_size=3,
+        #     name='{}_conv_1'.format(name))(input)
+        # lstm_1 = l.LSTM(
+        #     filters,
+        #     return_sequences=return_sequences,
+        #     name='{}_lstm_1'.format(name))(conv_1)
+
+        # TODO: replace with GraphConvLSTM
+
+        num_features = input.shape[-2]
+        # tmp = tf.zeros(shape=(1, num_features, num_features), dtype=tf.dtypes.float32)
+
+        tmp = np.zeros(shape=(1, num_features, num_features))
+        tmp[0][0][0] = 1
+
+        # tmp = [[
+        #     [0, 1, 0, 0],
+        #     [0, 0, 1, 0],
+        #     [0, 0, 0, 1],
+        #     [1, 0, 0, 0],
+        # ]]
+        graph_conv_tensor = K.variable(tmp, 'float32')
+        # graph_conv_tensor = tf.zeros(
+        #     shape=(1, num_features, num_features), dtype=tf.dtypes.float32)
+        graph_conv_lstm = dgl.GraphConvLSTM(filters,
+                                            graph_conv_tensor).call(input)
+
+        return graph_conv_lstm
+
+
+    def build_graph(self, edges, num_features):
+        i = [i for (i, j) in edges]
+        j = [j for (i, j) in edges]
+
+        adj = sp.coo_matrix((np.ones(len(edges)), (i, j)), shape=(num_features, num_features), dtype=np.float32)
+
+        # build symmetric adjacency matrix
+        adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+
+        A = adj
+        A = np.array(A.todense())
+
+        # Build Graph Convolution filters
+        SYM_NORM = True
+        A_norm = self.preprocess_adj_numpy(A, SYM_NORM)
+        num_filters = 2
+        # graph_conv_filters = np.concatenate([A_norm, np.matmul(A_norm, A_norm)], axis=0)
+        # graph_conv_filters = K.constant(graph_conv_filters)
+
+        graph_conv_filters = np.expand_dims(A_norm, 0)
+        graph_conv_filters = K.constant(graph_conv_filters)
+
+        return graph_conv_filters
+
+
+    def normalize_adj_numpy(self, adj, symmetric=True):
+        if symmetric:
+            d = np.diag(np.power(np.array(adj.sum(1)), -0.5).flatten(), 0)
+            a_norm = adj.dot(d).transpose().dot(d)
+        else:
+            d = np.diag(np.power(np.array(adj.sum(1)), -1).flatten(), 0)
+            a_norm = d.dot(adj)
+        return a_norm
+
+    def preprocess_adj_numpy(self, adj, symmetric=True):
+        adj = adj + np.eye(adj.shape[0])
+        adj = self.normalize_adj_numpy(adj, symmetric)
+        return adj
+
 
     @tf.function
     def agc_lstm_feature_augmentation(self, input):

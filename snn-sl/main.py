@@ -8,12 +8,11 @@ import numpy as np
 import data_loader as dl
 from model_tuner import ModelTuner
 from model_visualizer import ModelVisualizer
-from models import *
+from models import AttentionGraphConvLSTM, Architecture
 
-# Configurations ----------------------------
+# Parameters:  ------------------------------
 debug = True
 data_folder = '../../../data/asllvd-skeleton-20/normalized/'
-
 # -------------------------------------------
 
 
@@ -27,7 +26,7 @@ def run():
     print("Input shape: ", input_shape)
 
     architecture = AttentionGraphConvLSTM(input_shape, num_classes)
-    
+
     tune([architecture], X_train, y_train, X_test, y_test, num_classes,
          input_shape)
 
@@ -64,7 +63,7 @@ def tune(architectures, X_train, y_train, X_test, y_test, num_classes,
     visualizer.plot_training_history(best_history)
 
 
-def visualize(architecture: BaseModel, X_train):
+def visualize(architecture: Architecture, X_train):
     """
     Visualize model 
     """
@@ -81,7 +80,7 @@ def visualize(architecture: BaseModel, X_train):
     visualizer.print_intermediate_layers(model, random.choice(X_train))
 
 
-def train(architecture: BaseModel, X_train, y_train, X_test, y_test,
+def train(architecture: Architecture, X_train, y_train, X_test, y_test,
           verbose=1):
     """
     Train the model
@@ -92,7 +91,7 @@ def train(architecture: BaseModel, X_train, y_train, X_test, y_test,
     #   'categorical_accuracy', 'accuracy'
     model = build_model(
         architecture
-    )  #, loss='categorical_crossentropy', metrics=['accuracy'])
+    )
 
     # Train:
     print("Training...")
@@ -108,13 +107,8 @@ def train(architecture: BaseModel, X_train, y_train, X_test, y_test,
     visualizer = ModelVisualizer()
     visualizer.plot_training_history(history)
 
-    # Evaluate:
-    # result = model.predict(X_train, batch_size=8, verbose=verbose)
-    # for value in result:
-    #     print('%.1f' % np.argmax(value))
 
-
-def build_model(architecture: BaseModel,
+def build_model(architecture: Architecture,
                 optimizer='adam',
                 loss='sparse_categorical_crossentropy',
                 metrics=['accuracy']):
@@ -133,5 +127,28 @@ def configure():
     pass
 
 
+import keras.backend as K
+
+def playground():
+    
+    A = np.asarray([
+        [0, 1, 0, 1],
+        [1, 0, 1, 0],
+        [0, 1, 0, 1],
+        [1, 0, 1, 0]
+    ])
+
+    X = np.asarray([
+        [2, 1,  5,  9],
+        [4, 6, 10,  8],
+        [6, 9, 15, 12]
+    ])
+
+    tmp = np.dot(A, X[0])
+
+    print(tmp)
+    
+
+# K.eager(playground())
 configure()
 run()

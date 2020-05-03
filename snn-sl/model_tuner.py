@@ -4,6 +4,11 @@ from sklearn.metrics import classification_report
 
 
 class ModelTuner():
+
+    # Parameters:  ------------------------------
+    n_jobs = 1
+    # -------------------------------------------
+
     def tune_hyperparameters(self,
                              build_fn,
                              parameters: dict,
@@ -48,11 +53,12 @@ class ModelTuner():
         search = GridSearchCV(
             estimator=model,
             param_grid=parameters,
-            n_jobs=-1,
+            n_jobs=self.n_jobs,
             cv=cross_validation,
             verbose=(100 if log else 0),
             # scoring=score,
-            return_train_score=False)
+            return_train_score=False,
+            error_score='raise')
 
         # Fit search:
         search.fit(
