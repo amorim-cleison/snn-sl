@@ -8,8 +8,10 @@ from third_party.keras_dgl import layers as dgl
 
 from .architecture import Architecture
 
-from layers import GraphConvLSTM
+from third_party.keras.utils import graph_conv_utils
+from third_party.keras.layers import GraphConvLSTM
 
+import networkx as nx
 
 class AttentionGraphConvLSTM(Architecture):
     """
@@ -23,18 +25,18 @@ class AttentionGraphConvLSTM(Architecture):
     """
 
     data_format = 'channels_last'
-    edges = [   (0, 1), (1, 2), (2, 12),
+    edges = [   (0, 1), (1, 2), (2, 16),
                 (0, 3), (3, 4), (4, 5),
                 (5, 6), (6, 7),
                 (5, 8), (8, 9),
                 (5, 10), (10, 11),
                 (5, 12), (12, 13),
                 (5, 14), (14, 15),
-                (12, 13), (13, 14),
-                (12, 15), (15, 16),
-                (12, 17), (17, 18),
-                (12, 19), (19, 20),
-                (12, 21), (21, 22)  ]
+                (16, 17), (17, 18),
+                (16, 19), (19, 20),
+                (16, 21), (21, 22),
+                (16, 23), (23, 24),
+                (16, 25), (25, 26)  ]
 
 
     def __init__(self, input_shape, num_classes):
@@ -90,24 +92,21 @@ class AttentionGraphConvLSTM(Architecture):
         # tmp = np.ones(shape=(1, num_features, num_features))
         # graph_conv_tensor = K.constant(tmp, K.floatx())
         
-        graph_conv_tensor = self.build_graph(self.edges, 27)
+        G = nx.from_edgelist(self.edges)
+        adj = nx.adjacency_matrix(G)
 
+        # adj = graph_conv_utils.adjacency_matrix(self.edges)
+        norm_adj = graph_conv_utils.normalized_adjacency_matrix(adj)
+        norm_adj_tensor = K.variable(norm_adj.todense(), dtype=K.floatx()) # FIXME: stop parsing sparse matrix to dense (performance issue):
+                
         layers = [
             # l.Input(shape=self.input_shape),
             l.Permute((2, 4, 3, 1), input_shape=self.input_shape, name='permute'), # -> (60, 1, 27, 3) 
-            # l.Lambda(lambda x: K.squeeze(x, axis=2), name='squeeze'), 
+            l.Lambda(lambda x: K.squeeze(x, axis=2), name='squeeze'), 
 
-            # Input shape
-            # -  4D tensor with shape: (num_samples, timesteps, num_nodes, input_dim)
-            # Output shape
-            # - if `return_sequences`
-            #     - 4D tensor with shape: (num_samples, timesteps, num_nodes, output_dim)
-            # - else
-            #     - 4D tensor with shape: (num_samples, num_nodes, output_dim)
-            # graph_conv_tensor: [K_adjacency_power, num_graph_nodes, num_graph_nodes],
-            # dgl.GraphConvLSTM(40, graph_conv_tensor, name='gc_lstm'),
+            # ConvLSTM2D(10, (1, 2)),
 
-            GraphConvLSTM(10, (1, 2), graph_conv_tensor),
+            GraphConvLSTM(10, norm_adj_tensor, name='graph_conv_lstm'),
             l.Flatten(data_format=self.data_format, name='flatten'),
             l.Dense(self.num_classes),
             l.Activation('softmax')

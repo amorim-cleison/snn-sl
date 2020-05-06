@@ -7,12 +7,12 @@ setup(
     author='Cleison C. Amorim',
     author_email='cca5@cin.ufpe.br',
     license='GPL-3.0',
-    install_requires=['numpy>=1.9.1', 
-                      'scipy>=0.14', 
-                      'keras>=2.3.1', 
-                      'tensorflow>=2.1.0',
-                      'matplotlib>=3.1.3'],
+    install_requires=[
+        'numpy>=1.9.1', 'scipy>=0.14', 'keras>=2.3.1', 'tensorflow>=2.1.0',
+        'networkx>=2.4'
+    ],
     extras_require={
-        'tests': ['pytest', 'requests', 'markdown'],
+        'visualize': ['matplotlib>=3.1.3'],
+        'tests': ['pytest', 'requests', 'markdown']
     },
     packages=find_packages())

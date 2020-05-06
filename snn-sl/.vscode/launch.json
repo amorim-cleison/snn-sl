@@ -5,21 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Test",
-            "type": "python",
-            "request": "launch",
-            "module": "pytest",
-            "console": "integratedTerminal"
-        },
-        {
             "name": "Run",
             "type": "python",
             "request": "launch",
             "program": "main.py",
+            "justMyCode": false,
             "args": [
                 "--device=cpu",
                 "--num_gpus=0"
             ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Test",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
             "console": "integratedTerminal"
         }
     ]
