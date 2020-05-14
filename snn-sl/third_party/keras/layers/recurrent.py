@@ -15,12 +15,12 @@ from keras.utils.generic_utils import has_arg, to_list, transpose_shape
 class GraphConvRNN(RNN):
 
     def __init__(self, cell,
-                return_sequences=False,
-                return_state=False,
-                go_backwards=False,
-                stateful=False,
-                unroll=False,
-                **kwargs):
+                 return_sequences=False,
+                 return_state=False,
+                 go_backwards=False,
+                 stateful=False,
+                 unroll=False,
+                 **kwargs):
         if unroll:
             raise TypeError('Unrolling isn\'t possible with '
                             'convolutional RNNs.')
@@ -29,14 +29,13 @@ class GraphConvRNN(RNN):
             raise TypeError('It is not possible at the moment to'
                             'stack convolutional cells.')
         super(GraphConvRNN, self).__init__(cell,
-                                        return_sequences,
-                                        return_state,
-                                        go_backwards,
-                                        stateful,
-                                        unroll,
-                                        **kwargs)
+                                           return_sequences,
+                                           return_state,
+                                           go_backwards,
+                                           stateful,
+                                           unroll,
+                                           **kwargs)
         self.input_spec = [InputSpec(ndim=4)]
-
 
     def compute_output_shape(self, input_shape):
         if isinstance(input_shape, list):
@@ -49,7 +48,7 @@ class GraphConvRNN(RNN):
         elif cell.data_format == 'channels_last':
             rows = input_shape[2]
             cols = input_shape[3]
-        
+
         # XXX: 2020-05-06: continue here
         rows = conv_utils.conv_output_length(rows,
                                              cell.kernel_size[0],
@@ -88,7 +87,8 @@ class GraphConvRNN(RNN):
             input_shape = input_shape[0]
 
         batch_size = input_shape[0] if self.stateful else None
-        self.input_spec[0] = InputSpec(shape=(batch_size, None) + input_shape[2:4])
+        self.input_spec[0] = InputSpec(
+            shape=(batch_size, None) + input_shape[2:4])
 
         # allow cell (if layer) to build before we set or validate state_spec
         if isinstance(self.cell, Layer):
@@ -110,7 +110,8 @@ class GraphConvRNN(RNN):
                 ch_dim = 1
             elif self.cell.data_format == 'channels_last':
                 ch_dim = 3
-            if not [spec.shape[ch_dim] for spec in self.state_spec] == state_size:
+            if not [spec.shape[ch_dim]
+                    for spec in self.state_spec] == state_size:
                 raise ValueError(
                     'An initial_state was passed that is not compatible with '
                     '`cell.state_size`. Received `state_spec`={}; '
@@ -205,7 +206,8 @@ class GraphConvRNN(RNN):
             additional_specs += self.constants_spec
         # at this point additional_inputs cannot be empty
         for tensor in additional_inputs:
-            if K.is_keras_tensor(tensor) != K.is_keras_tensor(additional_inputs[0]):
+            if K.is_keras_tensor(tensor) != K.is_keras_tensor(
+                    additional_inputs[0]):
                 raise ValueError('The initial state or constants of an RNN'
                                  ' layer cannot be specified with a mix of'
                                  ' Keras tensors and non-Keras tensors')
@@ -365,7 +367,6 @@ class GraphConvRNN(RNN):
                 # TODO: consider batch calls to `set_value`.
                 K.set_value(state, value)
 
-
     def get_config(self):
         config = {'filters': self.filters,
                   'kernel_size': self.kernel_size,
@@ -381,148 +382,32 @@ class GraphConvRNN(RNN):
                       initializers.serialize(self.kernel_initializer),
                   'recurrent_initializer':
                       initializers.serialize(self.recurrent_initializer),
-                  'bias_initializer': initializers.serialize(self.bias_initializer),
+                  'bias_initializer': initializers.serialize(
+                      self.bias_initializer),
                   'unit_forget_bias': self.unit_forget_bias,
                   'kernel_regularizer':
                       regularizers.serialize(self.kernel_regularizer),
                   'recurrent_regularizer':
                       regularizers.serialize(self.recurrent_regularizer),
-                  'bias_regularizer': regularizers.serialize(self.bias_regularizer),
+                  'bias_regularizer': regularizers.serialize(
+                      self.bias_regularizer),
                   'activity_regularizer':
                       regularizers.serialize(self.activity_regularizer),
                   'kernel_constraint':
                       constraints.serialize(self.kernel_constraint),
                   'recurrent_constraint':
                       constraints.serialize(self.recurrent_constraint),
-                  'bias_constraint': constraints.serialize(self.bias_constraint),
+                  'bias_constraint': constraints.serialize(
+                      self.bias_constraint),
                   'dropout': self.dropout,
                   'recurrent_dropout': self.recurrent_dropout}
-        base_config = super(GraphConvLSTM, self).get_config()
+        base_config = super(GraphConvRNN, self).get_config()
         del base_config['cell']
         return dict(list(base_config.items()) + list(config.items()))
 
     @classmethod
     def from_config(cls, config):
         return cls(**config)
-
-
-        if self.return_state:
-            states = to_list(states, allow_tuple=True)
-            return [output] + states
-        else:
-            return output
-
-    def reset_states(self, states=None):
-        if not self.stateful:
-            raise AttributeError('Layer must be stateful.')
-        input_shape = self.input_spec[0].shape
-        state_shape = self.compute_output_shape(input_shape)
-        if self.return_state:
-            state_shape = state_shape[0]
-        if self.return_sequences:
-            state_shape = state_shape[:1] + state_shape[2:]
-        if None in state_shape:
-            raise ValueError('If a RNN is stateful, it needs to know '
-                             'its batch size. Specify the batch size '
-                             'of your input tensors: \n'
-                             '- If using a Sequential model, '
-                             'specify the batch size by passing '
-                             'a `batch_input_shape` '
-                             'argument to your first layer.\n'
-                             '- If using the functional API, specify '
-                             'the time dimension by passing a '
-                             '`batch_shape` argument to your Input layer.\n'
-                             'The same thing goes for the number of rows '
-                             'and columns.')
-
-        # helper function
-        def get_tuple_shape(nb_channels):
-            result = list(state_shape)
-            if self.cell.data_format == 'channels_first':
-                result[1] = nb_channels
-            elif self.cell.data_format == 'channels_last':
-                result[3] = nb_channels
-            else:
-                raise KeyError
-            return tuple(result)
-
-        # initialize state if None
-        if self.states[0] is None:
-            if hasattr(self.cell.state_size, '__len__'):
-                self.states = [K.zeros(get_tuple_shape(dim))
-                               for dim in self.cell.state_size]
-            else:
-                self.states = [K.zeros(get_tuple_shape(self.cell.state_size))]
-        elif states is None:
-            if hasattr(self.cell.state_size, '__len__'):
-                for state, dim in zip(self.states, self.cell.state_size):
-                    K.set_value(state, np.zeros(get_tuple_shape(dim)))
-            else:
-                K.set_value(self.states[0],
-                            np.zeros(get_tuple_shape(self.cell.state_size)))
-        else:
-            states = to_list(states, allow_tuple=True)
-            if len(states) != len(self.states):
-                raise ValueError('Layer ' + self.name + ' expects ' +
-                                 str(len(self.states)) + ' states, '
-                                 'but it received ' + str(len(states)) +
-                                 ' state values. Input received: ' +
-                                 str(states))
-            for index, (value, state) in enumerate(zip(states, self.states)):
-                if hasattr(self.cell.state_size, '__len__'):
-                    dim = self.cell.state_size[index]
-                else:
-                    dim = self.cell.state_size
-                if value.shape != get_tuple_shape(dim):
-                    raise ValueError('State ' + str(index) +
-                                     ' is incompatible with layer ' +
-                                     self.name + ': expected shape=' +
-                                     str(get_tuple_shape(dim)) +
-                                     ', found shape=' + str(value.shape))
-                # TODO: consider batch calls to `set_value`.
-                K.set_value(state, value)
-
-
-    def get_config(self):
-        config = {'filters': self.filters,
-                  'kernel_size': self.kernel_size,
-                  'strides': self.strides,
-                  'padding': self.padding,
-                  'data_format': self.data_format,
-                  'dilation_rate': self.dilation_rate,
-                  'activation': activations.serialize(self.activation),
-                  'recurrent_activation':
-                      activations.serialize(self.recurrent_activation),
-                  'use_bias': self.use_bias,
-                  'kernel_initializer':
-                      initializers.serialize(self.kernel_initializer),
-                  'recurrent_initializer':
-                      initializers.serialize(self.recurrent_initializer),
-                  'bias_initializer': initializers.serialize(self.bias_initializer),
-                  'unit_forget_bias': self.unit_forget_bias,
-                  'kernel_regularizer':
-                      regularizers.serialize(self.kernel_regularizer),
-                  'recurrent_regularizer':
-                      regularizers.serialize(self.recurrent_regularizer),
-                  'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-                  'activity_regularizer':
-                      regularizers.serialize(self.activity_regularizer),
-                  'kernel_constraint':
-                      constraints.serialize(self.kernel_constraint),
-                  'recurrent_constraint':
-                      constraints.serialize(self.recurrent_constraint),
-                  'bias_constraint': constraints.serialize(self.bias_constraint),
-                  'dropout': self.dropout,
-                  'recurrent_dropout': self.recurrent_dropout}
-        base_config = super(GraphConvLSTM, self).get_config()
-        del base_config['cell']
-        return dict(list(base_config.items()) + list(config.items()))
-
-    @classmethod
-    def from_config(cls, config):
-        return cls(**config)
-
-
 
 
 class GraphConvLSTM(GraphConvRNN):
@@ -532,8 +417,8 @@ class GraphConvLSTM(GraphConvRNN):
     # @interfaces.legacy_convlstm2d_support
     def __init__(self,
                  filters,
-                #  kernel_size,
-                 adjacency_matrix, # FIXME: new param
+                 #  kernel_size,
+                 adjacency_matrix,  # FIXME: new param
                  strides=(1, 1),
                  padding='valid',
                  data_format=None,
@@ -561,7 +446,7 @@ class GraphConvLSTM(GraphConvRNN):
         cell = GraphConvLSTMCell(
             filters=filters,
             # kernel_size=kernel_size,
-            adjacency_matrix=adjacency_matrix, # FIXME: new param
+            adjacency_matrix=adjacency_matrix,  # FIXME: new param
             strides=strides,
             padding=padding,
             data_format=data_format,
@@ -694,23 +579,26 @@ class GraphConvLSTM(GraphConvRNN):
                       initializers.serialize(self.kernel_initializer),
                   'recurrent_initializer':
                       initializers.serialize(self.recurrent_initializer),
-                  'bias_initializer': initializers.serialize(self.bias_initializer),
+                  'bias_initializer': initializers.serialize(
+                      self.bias_initializer),
                   'unit_forget_bias': self.unit_forget_bias,
                   'kernel_regularizer':
                       regularizers.serialize(self.kernel_regularizer),
                   'recurrent_regularizer':
                       regularizers.serialize(self.recurrent_regularizer),
-                  'bias_regularizer': regularizers.serialize(self.bias_regularizer),
+                  'bias_regularizer': regularizers.serialize(
+                      self.bias_regularizer),
                   'activity_regularizer':
                       regularizers.serialize(self.activity_regularizer),
                   'kernel_constraint':
                       constraints.serialize(self.kernel_constraint),
                   'recurrent_constraint':
                       constraints.serialize(self.recurrent_constraint),
-                  'bias_constraint': constraints.serialize(self.bias_constraint),
+                  'bias_constraint': constraints.serialize(
+                      self.bias_constraint),
                   'dropout': self.dropout,
                   'recurrent_dropout': self.recurrent_dropout}
-        base_config = super(ConvLSTM2D, self).get_config()
+        base_config = super(GraphConvLSTM, self).get_config()
         del base_config['cell']
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -719,14 +607,13 @@ class GraphConvLSTM(GraphConvRNN):
         return cls(**config)
 
 
-
 class GraphConvLSTMCell(Layer):
 
     # TODO: review unused parameters
     def __init__(self,
                  filters,
-                #  kernel_size,
-                 adjacency_matrix, # FIXME: new param
+                 #  kernel_size,
+                 adjacency_matrix,  # FIXME: new param
                  strides=(1, 1),
                  padding='valid',
                  data_format=None,
@@ -788,7 +675,6 @@ class GraphConvLSTMCell(Layer):
         self._recurrent_dropout_mask = None
         self.adjacency_matrix = adjacency_matrix  # FIXME: new attribute
 
-
     def build(self, input_shape):
         if self.data_format == 'channels_first':
             channel_axis = 1
@@ -848,22 +734,29 @@ class GraphConvLSTMCell(Layer):
 
         # FIXME: remove this
         # self.kernel_i = self.kernel[:, :, :, :self.filters]
-        # self.recurrent_kernel_i = self.recurrent_kernel[:, :, :, :self.filters]
+        # self.recurrent_kernel_i =
+        #   self.recurrent_kernel[:, :, :, :self.filters]
         # self.kernel_f = self.kernel[:, :, :, self.filters:self.filters * 2]
         # self.recurrent_kernel_f = (
-        #     self.recurrent_kernel[:, :, :, self.filters:self.filters * 2])
-        # self.kernel_c = self.kernel[:, :, :, self.filters * 2:self.filters * 3]
+        #     self.recurrent_kernel[:, :, :,
+        #   self.filters:self.filters * 2])
+        # self.kernel_c = self.kernel[:, :, :,
+        #   self.filters * 2:self.filters * 3]
         # self.recurrent_kernel_c = (
-        #     self.recurrent_kernel[:, :, :, self.filters * 2:self.filters * 3])
+        #     self.recurrent_kernel[:, :, :,
+        #   self.filters * 2:self.filters * 3])
         # self.kernel_o = self.kernel[:, :, :, self.filters * 3:]
-        # self.recurrent_kernel_o = self.recurrent_kernel[:, :, :, self.filters * 3:]
+        # self.recurrent_kernel_o =
+        #   self.recurrent_kernel[:, :, :, self.filters * 3:]
 
         self.kernel_i = self.kernel[:, :self.filters]
         self.recurrent_kernel_i = self.recurrent_kernel[:, :self.filters]
         self.kernel_f = self.kernel[:, self.filters:self.filters * 2]
-        self.recurrent_kernel_f = (self.recurrent_kernel[:, self.filters:self.filters * 2])
+        self.recurrent_kernel_f = (
+            self.recurrent_kernel[:, self.filters:self.filters * 2])
         self.kernel_c = self.kernel[:, self.filters * 2:self.filters * 3]
-        self.recurrent_kernel_c = (self.recurrent_kernel[:, self.filters * 2:self.filters * 3])
+        self.recurrent_kernel_c = (
+            self.recurrent_kernel[:, self.filters * 2:self.filters * 3])
         self.kernel_o = self.kernel[:, self.filters * 3:]
         self.recurrent_kernel_o = self.recurrent_kernel[:, self.filters * 3:]
 
@@ -879,8 +772,6 @@ class GraphConvLSTMCell(Layer):
             self.bias_o = None
 
         super(GraphConvLSTMCell, self).build(input_shape)
-
-
 
     def call(self, inputs, states, training=None):
         if 0 < self.dropout < 1 and self._dropout_mask is None:
@@ -956,7 +847,6 @@ class GraphConvLSTMCell(Layer):
 
         return h, [h, c]
 
-
     def input_conv(self, x, w, b=None, padding='valid'):
         # conv_out = K.conv2d(x, w, strides=self.strides,
         #                     padding=padding,
@@ -970,8 +860,7 @@ class GraphConvLSTMCell(Layer):
 
         if b is not None:
             conv_out = K.bias_add(conv_out, b,
-                                data_format=self.data_format)
-
+                                  data_format=self.data_format)
         return conv_out
 
     def recurrent_conv(self, x, w):
@@ -981,19 +870,19 @@ class GraphConvLSTMCell(Layer):
         conv_out = self.__graph_conv(x, w)
         return conv_out
 
-
     def __graph_conv(self, x, w):
         """
         TODO: review `w` and `x` dimensions:
-        
+
         Given:
         - N: number of nodes in the graph
         - X (`x`) ∈ R^(N×C): input signal
-        - C: input channels (i.e. a C-dimensional feature vector for every node)
+        - C: input channels (i.e. a C-dimensional feature vector for
+                every node)
         - F: filters or feature maps
         - Θ (`w`) ∈ R^(C×F): a matrix of filter parameters
         - Z (`conv_out`) ∈ R^(N×F): the convolved signal matrix
-        
+
         Then:
         `x`        ~> [N, C] ~> [27,  3]
         `w`        ~> [C, F] ~> [ 3, 10]
@@ -1006,7 +895,7 @@ class GraphConvLSTMCell(Layer):
 
         # conv_out = K.dot(x_theta_l, self.adjacency_matrix)
         # conv_out_t = K.permute_dimensions(conv_out, (0, 2, 1))
-        
+
         # TODO: consider data format (channels first?)
 
         # Ensure input shapes consistency:
@@ -1028,7 +917,6 @@ class GraphConvLSTMCell(Layer):
 
         return conv_out
 
-
     def get_config(self):
         config = {'filters': self.filters,
                   'kernel_size': self.kernel_size,
@@ -1044,18 +932,21 @@ class GraphConvLSTMCell(Layer):
                       initializers.serialize(self.kernel_initializer),
                   'recurrent_initializer':
                       initializers.serialize(self.recurrent_initializer),
-                  'bias_initializer': initializers.serialize(self.bias_initializer),
+                  'bias_initializer': initializers.serialize(
+                      self.bias_initializer),
                   'unit_forget_bias': self.unit_forget_bias,
                   'kernel_regularizer':
                       regularizers.serialize(self.kernel_regularizer),
                   'recurrent_regularizer':
                       regularizers.serialize(self.recurrent_regularizer),
-                  'bias_regularizer': regularizers.serialize(self.bias_regularizer),
+                  'bias_regularizer': regularizers.serialize(
+                      self.bias_regularizer),
                   'kernel_constraint':
                       constraints.serialize(self.kernel_constraint),
                   'recurrent_constraint':
                       constraints.serialize(self.recurrent_constraint),
-                  'bias_constraint': constraints.serialize(self.bias_constraint),
+                  'bias_constraint': constraints.serialize(
+                      self.bias_constraint),
                   'dropout': self.dropout,
                   'recurrent_dropout': self.recurrent_dropout}
         base_config = super(GraphConvLSTMCell, self).get_config()
