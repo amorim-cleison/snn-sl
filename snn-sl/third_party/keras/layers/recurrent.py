@@ -406,6 +406,123 @@ class GraphConvRNN(RNN):
         return cls(**config)
 
 
+        if self.return_state:
+            states = to_list(states, allow_tuple=True)
+            return [output] + states
+        else:
+            return output
+
+    def reset_states(self, states=None):
+        if not self.stateful:
+            raise AttributeError('Layer must be stateful.')
+        input_shape = self.input_spec[0].shape
+        state_shape = self.compute_output_shape(input_shape)
+        if self.return_state:
+            state_shape = state_shape[0]
+        if self.return_sequences:
+            state_shape = state_shape[:1] + state_shape[2:]
+        if None in state_shape:
+            raise ValueError('If a RNN is stateful, it needs to know '
+                             'its batch size. Specify the batch size '
+                             'of your input tensors: \n'
+                             '- If using a Sequential model, '
+                             'specify the batch size by passing '
+                             'a `batch_input_shape` '
+                             'argument to your first layer.\n'
+                             '- If using the functional API, specify '
+                             'the time dimension by passing a '
+                             '`batch_shape` argument to your Input layer.\n'
+                             'The same thing goes for the number of rows '
+                             'and columns.')
+
+        # helper function
+        def get_tuple_shape(nb_channels):
+            result = list(state_shape)
+            if self.cell.data_format == 'channels_first':
+                result[1] = nb_channels
+            elif self.cell.data_format == 'channels_last':
+                result[3] = nb_channels
+            else:
+                raise KeyError
+            return tuple(result)
+
+        # initialize state if None
+        if self.states[0] is None:
+            if hasattr(self.cell.state_size, '__len__'):
+                self.states = [K.zeros(get_tuple_shape(dim))
+                               for dim in self.cell.state_size]
+            else:
+                self.states = [K.zeros(get_tuple_shape(self.cell.state_size))]
+        elif states is None:
+            if hasattr(self.cell.state_size, '__len__'):
+                for state, dim in zip(self.states, self.cell.state_size):
+                    K.set_value(state, np.zeros(get_tuple_shape(dim)))
+            else:
+                K.set_value(self.states[0],
+                            np.zeros(get_tuple_shape(self.cell.state_size)))
+        else:
+            states = to_list(states, allow_tuple=True)
+            if len(states) != len(self.states):
+                raise ValueError('Layer ' + self.name + ' expects ' +
+                                 str(len(self.states)) + ' states, '
+                                 'but it received ' + str(len(states)) +
+                                 ' state values. Input received: ' +
+                                 str(states))
+            for index, (value, state) in enumerate(zip(states, self.states)):
+                if hasattr(self.cell.state_size, '__len__'):
+                    dim = self.cell.state_size[index]
+                else:
+                    dim = self.cell.state_size
+                if value.shape != get_tuple_shape(dim):
+                    raise ValueError('State ' + str(index) +
+                                     ' is incompatible with layer ' +
+                                     self.name + ': expected shape=' +
+                                     str(get_tuple_shape(dim)) +
+                                     ', found shape=' + str(value.shape))
+                # TODO: consider batch calls to `set_value`.
+                K.set_value(state, value)
+
+
+    def get_config(self):
+        config = {'filters': self.filters,
+                  'kernel_size': self.kernel_size,
+                  'strides': self.strides,
+                  'padding': self.padding,
+                  'data_format': self.data_format,
+                  'dilation_rate': self.dilation_rate,
+                  'activation': activations.serialize(self.activation),
+                  'recurrent_activation':
+                      activations.serialize(self.recurrent_activation),
+                  'use_bias': self.use_bias,
+                  'kernel_initializer':
+                      initializers.serialize(self.kernel_initializer),
+                  'recurrent_initializer':
+                      initializers.serialize(self.recurrent_initializer),
+                  'bias_initializer': initializers.serialize(self.bias_initializer),
+                  'unit_forget_bias': self.unit_forget_bias,
+                  'kernel_regularizer':
+                      regularizers.serialize(self.kernel_regularizer),
+                  'recurrent_regularizer':
+                      regularizers.serialize(self.recurrent_regularizer),
+                  'bias_regularizer': regularizers.serialize(self.bias_regularizer),
+                  'activity_regularizer':
+                      regularizers.serialize(self.activity_regularizer),
+                  'kernel_constraint':
+                      constraints.serialize(self.kernel_constraint),
+                  'recurrent_constraint':
+                      constraints.serialize(self.recurrent_constraint),
+                  'bias_constraint': constraints.serialize(self.bias_constraint),
+                  'dropout': self.dropout,
+                  'recurrent_dropout': self.recurrent_dropout}
+        base_config = super(GraphConvLSTM, self).get_config()
+        del base_config['cell']
+        return dict(list(base_config.items()) + list(config.items()))
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
+
 
 
 class GraphConvLSTM(GraphConvRNN):
@@ -593,7 +710,7 @@ class GraphConvLSTM(GraphConvRNN):
                   'bias_constraint': constraints.serialize(self.bias_constraint),
                   'dropout': self.dropout,
                   'recurrent_dropout': self.recurrent_dropout}
-        base_config = super(GraphConvLSTM, self).get_config()
+        base_config = super(ConvLSTM2D, self).get_config()
         del base_config['cell']
         return dict(list(base_config.items()) + list(config.items()))
 
