@@ -41,4 +41,5 @@ jobs:
     
     - name: Test with pytest
       run: |
-        pytest snn-sl/
+        #pytest snn-sl/
+        python -m pytest
