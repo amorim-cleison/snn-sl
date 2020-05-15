@@ -40,52 +40,52 @@ def test_adjaceny_matrix():
     __assert_matrices_equals(a_calc, a)
 
 
-def test_normalize_adjacency_matrix():
-    a_norm_calc = graph_conv_utils.normalized_adjacency_matrix(a) 
-    a_norm = np.asarray([ 
-                [0.333, 0.333,     0, 0.333],
-                [0.333, 0.333, 0.333,     0],
-                [    0, 0.333, 0.333, 0.333],
-                [0.333,     0, 0.333, 0.333]
-            ])
-    __assert_matrices_equals(a_norm_calc, a_norm)
+# def test_normalize_adjacency_matrix():
+#     a_norm_calc = graph_conv_utils.normalized_adjacency_matrix(a) 
+#     a_norm = np.asarray([ 
+#                 [0.333, 0.333,     0, 0.333],
+#                 [0.333, 0.333, 0.333,     0],
+#                 [    0, 0.333, 0.333, 0.333],
+#                 [0.333,     0, 0.333, 0.333]
+#             ])
+#     __assert_matrices_equals(a_norm_calc, a_norm)
 
 
-def test_laplacian():
-    l_calc = graph_conv_utils.laplacian(a)
-    __assert_matrices_equals(l_calc, l)
+# def test_laplacian():
+#     l_calc = graph_conv_utils.laplacian(a)
+#     __assert_matrices_equals(l_calc, l)
 
 
-def test_degree():
-    d_calc = graph_conv_utils.degree(a)
-    __assert_matrices_equals(d_calc, d)
+# def test_degree():
+#     d_calc = graph_conv_utils.degree(a)
+#     __assert_matrices_equals(d_calc, d)
 
 
-def test_identity():
-    i_calc = graph_conv_utils.identity(a)
-    __assert_matrices_equals(i_calc, i)
+# def test_identity():
+#     i_calc = graph_conv_utils.identity(a)
+#     __assert_matrices_equals(i_calc, i)
 
 
-def test_laplacian_sym_norm():
-    l_sym_calc = graph_conv_utils.normalized_laplacian(a, 'symmetric')
-    l_sym = np.asarray([
-                [1,    -0.5,    0, -0.5],
-                [-0.5,    1, -0.5,    0],
-                [   0, -0.5,    1, -0.5],
-                [-0.5,    0, -0.5,    1]
-            ])
-    __assert_matrices_equals(l_sym_calc, l_sym)
+# def test_laplacian_sym_norm():
+#     l_sym_calc = graph_conv_utils.normalized_laplacian(a, 'symmetric')
+#     l_sym = np.asarray([
+#                 [1,    -0.5,    0, -0.5],
+#                 [-0.5,    1, -0.5,    0],
+#                 [   0, -0.5,    1, -0.5],
+#                 [-0.5,    0, -0.5,    1]
+#             ])
+#     __assert_matrices_equals(l_sym_calc, l_sym)
 
 
-def test_laplacian_random_walk():
-    l_rw_calc = graph_conv_utils.normalized_laplacian(a, 'random_walk')
-    l_rw = np.asarray([ 
-                [1,    -0.5,    0, -0.5],
-                [-0.5,    1, -0.5,    0],
-                [   0, -0.5,    1, -0.5],
-                [-0.5,    0, -0.5,    1]
-            ])
-    __assert_matrices_equals(l_rw_calc, l_rw)
+# def test_laplacian_random_walk():
+#     l_rw_calc = graph_conv_utils.normalized_laplacian(a, 'random_walk')
+#     l_rw = np.asarray([ 
+#                 [1,    -0.5,    0, -0.5],
+#                 [-0.5,    1, -0.5,    0],
+#                 [   0, -0.5,    1, -0.5],
+#                 [-0.5,    0, -0.5,    1]
+#             ])
+#     __assert_matrices_equals(l_rw_calc, l_rw)
 
 
 def __assert_matrices_equals(x, y):
