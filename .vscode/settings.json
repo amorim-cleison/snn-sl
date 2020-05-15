@@ -1,10 +1,10 @@
 {
-    "python.pythonPath": "C:\\Users\\cleison.c.amorim\\AppData\\Local\\Programs\\Python\\Python37\\python.exe",
+    "python.pythonPath": "~\\AppData\\Local\\Programs\\Python\\Python37\\python.exe",
     "python.testing.pytestArgs": [
         "tests"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.nosetestsEnabled": false,
     "python.testing.pytestEnabled": true,
-    "python.testing.autoTestDiscoverOnSaveEnabled": true
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
 }
