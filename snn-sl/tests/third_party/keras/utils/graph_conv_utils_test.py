@@ -1,5 +1,5 @@
 import pytest
-from  third_party.keras.utils import graph_conv_utils
+from third_party.keras.utils import graph_conv_utils
 import numpy as np
 import numpy.testing as nptest
 
