@@ -1,5 +1,5 @@
 # SNN-SL
 
-![Python package](https://github.com/amorim-cleison/snn-sl/workflows/Python%20package/badge.svg)
+![Python Build](https://github.com/amorim-cleison/snn-sl/workflows/Python%20Build/badge.svg)
 
 work in progress

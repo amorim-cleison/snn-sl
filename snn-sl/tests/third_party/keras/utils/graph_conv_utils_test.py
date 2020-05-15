@@ -39,6 +39,7 @@ def test_adjaceny_matrix():
     a_calc = graph_conv_utils.adjacency_matrix(edges, 4) 
     __assert_matrices_equals(a_calc, a)
 
+
 def test_normalize_adjacency_matrix():
     a_norm_calc = graph_conv_utils.normalized_adjacency_matrix(a) 
     a_norm = np.asarray([ 
@@ -54,9 +55,11 @@ def test_laplacian():
     l_calc = graph_conv_utils.laplacian(a)
     __assert_matrices_equals(l_calc, l)
 
+
 def test_degree():
     d_calc = graph_conv_utils.degree(a)
     __assert_matrices_equals(d_calc, d)
+
 
 def test_identity():
     i_calc = graph_conv_utils.identity(a)
@@ -83,6 +86,7 @@ def test_laplacian_random_walk():
                 [-0.5,    0, -0.5,    1]
             ])
     __assert_matrices_equals(l_rw_calc, l_rw)
+
 
 def __assert_matrices_equals(x, y):
     nptest.assert_array_almost_equal_nulp(x, y, 3)
