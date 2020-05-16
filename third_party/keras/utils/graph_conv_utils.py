@@ -2,7 +2,6 @@
 Utilities used in graph convolutional layers.
 """
 import numpy as np
-import networkx as nx
 from scipy import sparse as sp
 
 
@@ -102,9 +101,8 @@ def normalized_laplacian(a, method):
         # FIXME: change method
         # return nx.normalized_laplacian_matrix(G)
 
-
     def random_walk_norm_laplacian(a):
-        """ Random walk normalized Laplacian 
+        """ Random walk normalized Laplacian
         """
         i = identity(a)
         d = degree(a, True)
@@ -118,7 +116,7 @@ def normalized_laplacian(a, method):
     return __execute_func_from_options(method, methods, a=a)
     
 
-def __execute_func_from_options(func_name:str, func_options:dict, **kwargs):
+def __execute_func_from_options(func_name: str, func_options: dict, **kwargs):
     """
     Execute a function by name from a list of options.
     """
