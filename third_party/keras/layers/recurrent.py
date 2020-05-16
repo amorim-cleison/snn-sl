@@ -8,7 +8,6 @@ from keras.engine.base_layer import InputSpec
 from keras.layers import Layer
 from keras.layers.recurrent import (RNN, _generate_dropout_mask,
                                     _standardize_args)
-from keras.utils import conv_utils
 from keras.utils.generic_utils import has_arg, to_list, transpose_shape
 
 
@@ -42,36 +41,28 @@ class GraphConvRNN(RNN):
             input_shape = input_shape[0]
 
         cell = self.cell
-        if cell.data_format == 'channels_first':
-            rows = input_shape[3]
-            cols = input_shape[4]
-        elif cell.data_format == 'channels_last':
-            rows = input_shape[2]
-            cols = input_shape[3]
 
-        # XXX: 2020-05-06: continue here
-        rows = conv_utils.conv_output_length(rows,
-                                             cell.kernel_size[0],
-                                             padding=cell.padding,
-                                             stride=cell.strides[0],
-                                             dilation=cell.dilation_rate[0])
-        cols = conv_utils.conv_output_length(cols,
-                                             cell.kernel_size[1],
-                                             padding=cell.padding,
-                                             stride=cell.strides[1],
-                                             dilation=cell.dilation_rate[1])
+        # Given:
+        # - N: number of nodes in the graph
+        # - F: filters or feature maps
+        # Then:
+        # - Z (`conv_out`) ∈ R^(N×F): the convolved signal matrix
+        if self.cell.data_format == 'channels_first':
+            num_nodes = input_shape[-1]
+        elif self.cell.data_format == 'channels_last':
+            num_nodes = input_shape[-2]
 
-        output_shape = input_shape[:2] + (rows, cols, cell.filters)
+        output_shape = input_shape[:2] + (num_nodes, cell.filters)
         output_shape = transpose_shape(output_shape, cell.data_format,
-                                       spatial_axes=(2, 3))
+                                       spatial_axes=[2])
 
         if not self.return_sequences:
             output_shape = output_shape[:1] + output_shape[2:]
 
         if self.return_state:
             output_shape = [output_shape]
-            base = (input_shape[0], rows, cols, cell.filters)
-            base = transpose_shape(base, cell.data_format, spatial_axes=(1, 2))
+            base = (input_shape[0], num_nodes, cell.filters)
+            base = transpose_shape(base, cell.data_format, spatial_axes=[2])
             output_shape += [base[:] for _ in range(2)]
         return output_shape
 
@@ -88,7 +79,7 @@ class GraphConvRNN(RNN):
 
         batch_size = input_shape[0] if self.stateful else None
         self.input_spec[0] = InputSpec(
-            shape=(batch_size, None) + input_shape[2:4])
+            shape=(batch_size, None) + input_shape[-2:])
 
         # allow cell (if layer) to build before we set or validate state_spec
         if isinstance(self.cell, Layer):
@@ -107,9 +98,9 @@ class GraphConvRNN(RNN):
         if self.state_spec is not None:
             # initial_state was passed in call, check compatibility
             if self.cell.data_format == 'channels_first':
-                ch_dim = 1
+                ch_dim = -2
             elif self.cell.data_format == 'channels_last':
-                ch_dim = 3
+                ch_dim = -1
             if not [spec.shape[ch_dim]
                     for spec in self.state_spec] == state_size:
                 raise ValueError(
@@ -146,25 +137,7 @@ class GraphConvRNN(RNN):
         else:
             kernel = K.zeros(tuple(shape))
         initial_state = self.cell.input_conv(initial_state,
-                                             kernel,
-                                             padding=self.cell.padding)
-        # FIXME: remove this code:
-        # Fix for Theano because it needs
-        # K.int_shape to work in call() with initial_state.
-        # keras_shape = list(K.int_shape(inputs))
-        # keras_shape.pop(1)
-        # if K.image_data_format() == 'channels_first':
-        #     indices = 2, 3
-        # else:
-        #     indices = 1, 2
-        # for i, j in enumerate(indices):
-        #     keras_shape[j] = conv_utils.conv_output_length(
-        #         keras_shape[j],
-        #         shape[i],
-        #         padding=self.cell.padding,
-        #         stride=self.cell.strides[i],
-        #         dilation=self.cell.dilation_rate[i])
-        # initial_state._keras_shape = keras_shape
+                                             kernel)
 
         if hasattr(self.cell.state_size, '__len__'):
             return [initial_state for _ in self.cell.state_size]
@@ -369,11 +342,7 @@ class GraphConvRNN(RNN):
 
     def get_config(self):
         config = {'filters': self.filters,
-                  'kernel_size': self.kernel_size,
-                  'strides': self.strides,
-                  'padding': self.padding,
                   'data_format': self.data_format,
-                  'dilation_rate': self.dilation_rate,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':
                       activations.serialize(self.recurrent_activation),
@@ -413,16 +382,11 @@ class GraphConvRNN(RNN):
 class GraphConvLSTM(GraphConvRNN):
 
     # TODO: check what is this annotation doing:
-    # TODO: review unused parameters:
     # @interfaces.legacy_convlstm2d_support
     def __init__(self,
                  filters,
-                 #  kernel_size,
                  adjacency_matrix,  # FIXME: new param
-                 strides=(1, 1),
-                 padding='valid',
                  data_format=None,
-                 dilation_rate=(1, 1),
                  activation='tanh',
                  recurrent_activation='hard_sigmoid',
                  use_bias=True,
@@ -445,12 +409,8 @@ class GraphConvLSTM(GraphConvRNN):
                  **kwargs):
         cell = GraphConvLSTMCell(
             filters=filters,
-            # kernel_size=kernel_size,
             adjacency_matrix=adjacency_matrix,  # FIXME: new param
-            strides=strides,
-            padding=padding,
             data_format=data_format,
-            dilation_rate=dilation_rate,
             activation=activation,
             recurrent_activation=recurrent_activation,
             use_bias=use_bias,
@@ -485,24 +445,12 @@ class GraphConvLSTM(GraphConvRNN):
         return self.cell.filters
 
     @property
-    def kernel_size(self):
-        return self.cell.kernel_size
-
-    @property
-    def strides(self):
-        return self.cell.strides
-
-    @property
-    def padding(self):
-        return self.cell.padding
+    def adjacency_matrix(self):
+        return self.cell.adjacency_matrix
 
     @property
     def data_format(self):
         return self.cell.data_format
-
-    @property
-    def dilation_rate(self):
-        return self.cell.dilation_rate
 
     @property
     def activation(self):
@@ -566,11 +514,7 @@ class GraphConvLSTM(GraphConvRNN):
 
     def get_config(self):
         config = {'filters': self.filters,
-                  'kernel_size': self.kernel_size,
-                  'strides': self.strides,
-                  'padding': self.padding,
                   'data_format': self.data_format,
-                  'dilation_rate': self.dilation_rate,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':
                       activations.serialize(self.recurrent_activation),
@@ -609,15 +553,10 @@ class GraphConvLSTM(GraphConvRNN):
 
 class GraphConvLSTMCell(Layer):
 
-    # TODO: review unused parameters
     def __init__(self,
                  filters,
-                 #  kernel_size,
                  adjacency_matrix,  # FIXME: new param
-                 strides=(1, 1),
-                 padding='valid',
                  data_format=None,
-                 dilation_rate=(1, 1),
                  activation='tanh',
                  recurrent_activation='hard_sigmoid',
                  use_bias=True,
@@ -636,13 +575,7 @@ class GraphConvLSTMCell(Layer):
                  **kwargs):
         super(GraphConvLSTMCell, self).__init__(**kwargs)
         self.filters = filters
-        # self.kernel_size = conv_utils.normalize_tuple(kernel_size, 2,
-        #                                               'kernel_size')
-        self.strides = conv_utils.normalize_tuple(strides, 2, 'strides')
-        self.padding = conv_utils.normalize_padding(padding)
         self.data_format = K.normalize_data_format(data_format)
-        self.dilation_rate = conv_utils.normalize_tuple(
-            dilation_rate, 2, 'dilation_rate')
         self.activation = activations.get(activation)
         self.recurrent_activation = activations.get(recurrent_activation)
         self.use_bias = use_bias
@@ -677,19 +610,13 @@ class GraphConvLSTMCell(Layer):
 
     def build(self, input_shape):
         if self.data_format == 'channels_first':
-            channel_axis = 1
-        else:
+            channel_axis = -2
+        elif self.data_format == 'channels_last':
             channel_axis = -1
+
         if input_shape[channel_axis] is None:
             raise ValueError('The channel dimension of the inputs '
                              'should be defined. Found `None`.')
-
-        # FIXME: remove this
-        # input_dim = input_shape[channel_axis]
-        # kernel_shape = self.kernel_size + (input_dim, self.filters * 4)
-        # self.kernel_shape = kernel_shape
-        # recurrent_kernel_shape = self.kernel_size + (self.filters,
-        #                                              self.filters * 4)
 
         input_dim = input_shape[channel_axis]
         kernel_shape = (input_dim, self.filters * 4)
@@ -731,23 +658,6 @@ class GraphConvLSTMCell(Layer):
                 constraint=self.bias_constraint)
         else:
             self.bias = None
-
-        # FIXME: remove this
-        # self.kernel_i = self.kernel[:, :, :, :self.filters]
-        # self.recurrent_kernel_i =
-        #   self.recurrent_kernel[:, :, :, :self.filters]
-        # self.kernel_f = self.kernel[:, :, :, self.filters:self.filters * 2]
-        # self.recurrent_kernel_f = (
-        #     self.recurrent_kernel[:, :, :,
-        #   self.filters:self.filters * 2])
-        # self.kernel_c = self.kernel[:, :, :,
-        #   self.filters * 2:self.filters * 3]
-        # self.recurrent_kernel_c = (
-        #     self.recurrent_kernel[:, :, :,
-        #   self.filters * 2:self.filters * 3])
-        # self.kernel_o = self.kernel[:, :, :, self.filters * 3:]
-        # self.recurrent_kernel_o =
-        #   self.recurrent_kernel[:, :, :, self.filters * 3:]
 
         self.kernel_i = self.kernel[:, :self.filters]
         self.recurrent_kernel_i = self.recurrent_kernel[:, :self.filters]
@@ -818,22 +728,15 @@ class GraphConvLSTMCell(Layer):
             h_tm1_c = h_tm1
             h_tm1_o = h_tm1
 
-        x_i = self.input_conv(inputs_i, self.kernel_i, self.bias_i,
-                              padding=self.padding)
-        x_f = self.input_conv(inputs_f, self.kernel_f, self.bias_f,
-                              padding=self.padding)
-        x_c = self.input_conv(inputs_c, self.kernel_c, self.bias_c,
-                              padding=self.padding)
-        x_o = self.input_conv(inputs_o, self.kernel_o, self.bias_o,
-                              padding=self.padding)
-        h_i = self.recurrent_conv(h_tm1_i,
-                                  self.recurrent_kernel_i)
-        h_f = self.recurrent_conv(h_tm1_f,
-                                  self.recurrent_kernel_f)
-        h_c = self.recurrent_conv(h_tm1_c,
-                                  self.recurrent_kernel_c)
-        h_o = self.recurrent_conv(h_tm1_o,
-                                  self.recurrent_kernel_o)
+        # TODO: review cell operations by formulas in paper:
+        x_i = self.input_conv(inputs_i, self.kernel_i, self.bias_i)
+        x_f = self.input_conv(inputs_f, self.kernel_f, self.bias_f)
+        x_c = self.input_conv(inputs_c, self.kernel_c, self.bias_c)
+        x_o = self.input_conv(inputs_o, self.kernel_o, self.bias_o)
+        h_i = self.recurrent_conv(h_tm1_i, self.recurrent_kernel_i)
+        h_f = self.recurrent_conv(h_tm1_f, self.recurrent_kernel_f)
+        h_c = self.recurrent_conv(h_tm1_c, self.recurrent_kernel_c)
+        h_o = self.recurrent_conv(h_tm1_o, self.recurrent_kernel_o)
 
         i = self.recurrent_activation(x_i + h_i)
         f = self.recurrent_activation(x_f + h_f)
@@ -847,16 +750,10 @@ class GraphConvLSTMCell(Layer):
 
         return h, [h, c]
 
-    def input_conv(self, x, w, b=None, padding='valid'):
-        # conv_out = K.conv2d(x, w, strides=self.strides,
-        #                     padding=padding,
-        #                     data_format=self.data_format,
-        #                     dilation_rate=self.dilation_rate)
-        # if b is not None:
-        #     conv_out = K.bias_add(conv_out, b,
-        #                         data_format=self.data_format)
-
-        conv_out = self.__graph_conv(x, w)
+    def input_conv(self, x, w, b=None):
+        conv_out = self.graph_conv(x, w,
+                                   self.adjacency_matrix,
+                                   self.data_format)
 
         if b is not None:
             conv_out = K.bias_add(conv_out, b,
@@ -864,22 +761,26 @@ class GraphConvLSTMCell(Layer):
         return conv_out
 
     def recurrent_conv(self, x, w):
-        # conv_out = K.conv2d(x, w, strides=(1, 1),
-        #                     padding='same',
-        #                     data_format=self.data_format)
-        conv_out = self.__graph_conv(x, w)
-        return conv_out
+        return self.graph_conv(x, w,
+                               self.adjacency_matrix,
+                               self.data_format)
 
-    def __graph_conv(self, x, w):
-        """
-        TODO: review `w` and `x` dimensions:
+    # TODO: move this to K (Tensorflow backend)
+    def graph_conv(self, x, kernel, adj, data_format=None):
+        """Graph convolution, as per 'Kipf and Welling'.
+
+        # Arguments
+            x: Tensor or variable.
+            kernel: kernel tensor.
+            adj: adjacency matrix tensor.
+            data_format: string, `"channels_last"` or `"channels_first"`.
 
         Given:
-        - N: number of nodes in the graph
+        - N (`num_nodes`): number of nodes in the graph
         - X (`x`) ∈ R^(N×C): input signal
-        - C: input channels (i.e. a C-dimensional feature vector for
-                every node)
-        - F: filters or feature maps
+        - C (`num_channels`): input channels (i.e. a C-dimensional 
+                feature vector for every node)
+        - F (`num_filters`): filters or feature maps
         - Θ (`w`) ∈ R^(C×F): a matrix of filter parameters
         - Z (`conv_out`) ∈ R^(N×F): the convolved signal matrix
 
@@ -888,42 +789,39 @@ class GraphConvLSTMCell(Layer):
         `w`        ~> [C, F] ~> [ 3, 10]
         `conv_out` ~> [N, F] ~> [27, 10]
         """
-        # FIXME: remove this code:
+        num_nodes, num_channels, num_filters = self.__get_graph_conv_shapes(
+            x, kernel, data_format)
+        assert K.int_shape(x)[-2:] == (num_nodes, num_channels)
+        assert K.int_shape(kernel) == (num_channels, num_filters)
+
         # TODO: verify possibility to store expanded `w` and `adjacency_matrix`
-        # x_theta = K.dot(x, w)
-        # x_theta_l = K.permute_dimensions(x_theta, (0, 2, 1))
-
-        # conv_out = K.dot(x_theta_l, self.adjacency_matrix)
-        # conv_out_t = K.permute_dimensions(conv_out, (0, 2, 1))
-
-        # TODO: consider data format (channels first?)
-
-        # Ensure input shapes consistency:
-        n = x.shape[-2]     # num of nodes
-        c = x.shape[-1]     # num of channels
-        f = self.filters    # num of filters
-        assert K.int_shape(x) == (None, n, c)
-        assert K.int_shape(w) == (c, f)
-
         # Convolution:
-        w_l = K.expand_dims(w, 0)
+        w_l = K.expand_dims(kernel, 0)
         x_theta = K.batch_dot(x, w_l)
 
-        adj_l = K.expand_dims(self.adjacency_matrix, 0)
+        adj_l = K.expand_dims(adj, 0)
         conv_out = K.batch_dot(adj_l, x_theta)
 
-        # Ensure the output shape consistency:
-        assert K.int_shape(conv_out) == (None, n, f)
-
+        assert K.int_shape(conv_out)[-2:] == (num_nodes, num_filters)
         return conv_out
+
+    def __get_graph_conv_shapes(self, x, kernel, data_format):
+        """
+        # Return
+            Tuple containing `(num_nodes, num_channels, num_filters)`
+        """
+        data_format = K.normalize_data_format(data_format)
+        num_channels, num_filters = K.int_shape(kernel)
+
+        if data_format == 'channels_first':
+            num_nodes = K.int_shape(x)[-1]
+        elif data_format == 'channels_last':
+            num_nodes = K.int_shape(x)[-2]
+        return (num_nodes, num_channels, num_filters)
 
     def get_config(self):
         config = {'filters': self.filters,
-                  'kernel_size': self.kernel_size,
-                  'strides': self.strides,
-                  'padding': self.padding,
                   'data_format': self.data_format,
-                  'dilation_rate': self.dilation_rate,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':
                       activations.serialize(self.recurrent_activation),

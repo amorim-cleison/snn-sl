@@ -7,4 +7,5 @@
     "python.testing.nosetestsEnabled": false,
     "python.testing.pytestEnabled": true,
     "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    "cornflakes.linter.executablePath": "~\\AppData\\Roaming\\Python\\Python37\\Scripts\\flake8.exe",
 }

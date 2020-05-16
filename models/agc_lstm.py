@@ -97,7 +97,11 @@ class AttentionGraphConvLSTM(Architecture):
 
         # adj = graph_conv_utils.adjacency_matrix(self.edges)
         norm_adj = graph_conv_utils.normalized_adjacency_matrix(adj)
-        norm_adj_tensor = K.variable(norm_adj.todense(), dtype=K.floatx()) # FIXME: stop parsing sparse matrix to dense (performance issue):
+
+        # FIXME: this is not a "normalized" adj_matrix, but part of a
+        # specific formula from 'Kipf and Welling'
+        # FIXME: stop parsing sparse matrix to dense (performance issue):
+        norm_adj_tensor = K.variable(norm_adj.todense(), dtype=K.floatx()) 
                 
         layers = [
             # l.Input(shape=self.input_shape),
@@ -106,7 +110,7 @@ class AttentionGraphConvLSTM(Architecture):
 
             # ConvLSTM2D(10, (1, 2)),
 
-            GraphConvLSTM(10, norm_adj_tensor, name='graph_conv_lstm'),
+            GraphConvLSTM(10, norm_adj_tensor, name='graph_conv_lstm', return_sequences=True),
             l.Flatten(data_format=self.data_format, name='flatten'),
             l.Dense(self.num_classes),
             l.Activation('softmax')

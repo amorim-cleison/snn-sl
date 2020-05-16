@@ -12,7 +12,7 @@ from models import AttentionGraphConvLSTM, Architecture
 
 # Parameters:  ------------------------------
 debug = True
-data_folder = '../../../data/asllvd-skeleton-20/normalized/'
+data_folder = '../../data/asllvd-skeleton-20/normalized/'
 # -------------------------------------------
 
 
@@ -107,6 +107,9 @@ def train(architecture: Architecture, X_train, y_train, X_test, y_test,
     visualizer = ModelVisualizer()
     visualizer.plot_training_history(history)
 
+    # Finish
+    print("Finished")
+
 
 def build_model(architecture: Architecture,
                 optimizer='adam',
@@ -118,19 +121,16 @@ def build_model(architecture: Architecture,
     model = architecture.build()
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
     model.summary()
-    # checkpointer = ModelCheckpoint(filepath=data_path + '/model-{epoch:02d}.hdf5', verbose=1)
+    # checkpointer = ModelCheckpoint(
+    #    filepath=data_path + '/model-{epoch:02d}.hdf5', verbose=1)
     return model
-
 
 
 def configure():
     pass
 
 
-import keras.backend as K
-
 def playground():
-    
     A = np.asarray([
         [0, 1, 0, 1],
         [1, 0, 1, 0],
