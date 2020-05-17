@@ -9,7 +9,12 @@ from keras.layers import Layer
 from keras.layers.recurrent import (RNN, _generate_dropout_mask,
                                     _standardize_args)
 from keras.utils.generic_utils import has_arg, to_list, transpose_shape
+from networkx import Graph, adjacency_matrix
+from third_party.keras.utils.graph_conv_utils import normalized_adjacency_matrix
 
+# TODO: remove 
+import networkx as nx
+from third_party.keras.utils import graph_conv_utils as utils
 
 class GraphConvRNN(RNN):
 
@@ -342,6 +347,7 @@ class GraphConvRNN(RNN):
 
     def get_config(self):
         config = {'filters': self.filters,
+                  'graph': self.graph_data,
                   'data_format': self.data_format,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':
@@ -384,8 +390,8 @@ class GraphConvLSTM(GraphConvRNN):
     # TODO: check what is this annotation doing:
     # @interfaces.legacy_convlstm2d_support
     def __init__(self,
+                 graph_data,
                  filters,
-                 adjacency_matrix,  # FIXME: new param
                  data_format=None,
                  activation='tanh',
                  recurrent_activation='hard_sigmoid',
@@ -408,8 +414,8 @@ class GraphConvLSTM(GraphConvRNN):
                  recurrent_dropout=0.,
                  **kwargs):
         cell = GraphConvLSTMCell(
+            graph_data=graph_data,
             filters=filters,
-            adjacency_matrix=adjacency_matrix,  # FIXME: new param
             data_format=data_format,
             activation=activation,
             recurrent_activation=recurrent_activation,
@@ -445,8 +451,8 @@ class GraphConvLSTM(GraphConvRNN):
         return self.cell.filters
 
     @property
-    def adjacency_matrix(self):
-        return self.cell.adjacency_matrix
+    def graph(self):
+        return self.cell.graph
 
     @property
     def data_format(self):
@@ -514,6 +520,7 @@ class GraphConvLSTM(GraphConvRNN):
 
     def get_config(self):
         config = {'filters': self.filters,
+                  'graph': self.graph_data,
                   'data_format': self.data_format,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':
@@ -554,8 +561,8 @@ class GraphConvLSTM(GraphConvRNN):
 class GraphConvLSTMCell(Layer):
 
     def __init__(self,
+                 graph_data,
                  filters,
-                 adjacency_matrix,  # FIXME: new param
                  data_format=None,
                  activation='tanh',
                  recurrent_activation='hard_sigmoid',
@@ -574,6 +581,11 @@ class GraphConvLSTMCell(Layer):
                  recurrent_dropout=0.,
                  **kwargs):
         super(GraphConvLSTMCell, self).__init__(**kwargs)
+
+        if graph_data is None:
+            raise ValueError('The graph data must be defined. Found `None`.')
+
+        self.graph_data = graph_data
         self.filters = filters
         self.data_format = K.normalize_data_format(data_format)
         self.activation = activations.get(activation)
@@ -606,9 +618,15 @@ class GraphConvLSTMCell(Layer):
         self.state_size = (self.filters, self.filters)
         self._dropout_mask = None
         self._recurrent_dropout_mask = None
-        self.adjacency_matrix = adjacency_matrix  # FIXME: new attribute
+        self._conv_part = None
 
     def build(self, input_shape):
+        # Build graph:
+        # XXX: 2020-05-17: continue here - there is a problem using 
+        # 'nx.Graph' type. Keras/Tensorflow seems not to be compatible with it.
+        self.graph = Graph(self.graph_data)
+
+        # Build kernels:
         if self.data_format == 'channels_first':
             channel_axis = -2
         elif self.data_format == 'channels_last':
@@ -752,7 +770,7 @@ class GraphConvLSTMCell(Layer):
 
     def input_conv(self, x, w, b=None):
         conv_out = self.graph_conv(x, w,
-                                   self.adjacency_matrix,
+                                   self.graph,
                                    self.data_format)
 
         if b is not None:
@@ -762,11 +780,11 @@ class GraphConvLSTMCell(Layer):
 
     def recurrent_conv(self, x, w):
         return self.graph_conv(x, w,
-                               self.adjacency_matrix,
+                               self.graph,
                                self.data_format)
 
     # TODO: move this to K (Tensorflow backend)
-    def graph_conv(self, x, kernel, adj, data_format=None):
+    def graph_conv(self, x, kernel, graph, data_format=None):
         """Graph convolution, as per 'Kipf and Welling'.
 
         # Arguments
@@ -789,38 +807,40 @@ class GraphConvLSTMCell(Layer):
         `w`        ~> [C, F] ~> [ 3, 10]
         `conv_out` ~> [N, F] ~> [27, 10]
         """
-        num_nodes, num_channels, num_filters = self.__get_graph_conv_shapes(
-            x, kernel, data_format)
+        num_channels, num_filters = K.int_shape(kernel)
+        num_nodes = len(graph)
         assert K.int_shape(x)[-2:] == (num_nodes, num_channels)
         assert K.int_shape(kernel) == (num_channels, num_filters)
 
-        # TODO: verify possibility to store expanded `w` and `adjacency_matrix`
+        if True: #self._conv_part is None:
+            # FIXME: stop parsing sparse matrix to dense (Keras bug):
+            adj = adjacency_matrix(graph).todense()
+            adj = K.variable(adj)
+
+            # Preprocessing from 'Kipf and Welling':
+            i = K.eye(K.int_shape(adj)[0])
+            a_hat = adj + i
+
+            # TODO: review degree:
+            # FIXME: stop parsing sparse matrix to dense (Keras bug):
+            d_hat = K.variable(utils.degree(graph).todense())
+
+            d_hat_inv_sqrt = K.pow(d_hat, -0.5)
+            self._conv_part = d_hat_inv_sqrt * a_hat * d_hat_inv_sqrt  # (N, N)
+
         # Convolution:
         w_l = K.expand_dims(kernel, 0)
         x_theta = K.batch_dot(x, w_l)
 
-        adj_l = K.expand_dims(adj, 0)
-        conv_out = K.batch_dot(adj_l, x_theta)
+        z_l = K.expand_dims(self._conv_part, 0)
+        z = K.batch_dot(z_l, x_theta)
 
-        assert K.int_shape(conv_out)[-2:] == (num_nodes, num_filters)
-        return conv_out
-
-    def __get_graph_conv_shapes(self, x, kernel, data_format):
-        """
-        # Return
-            Tuple containing `(num_nodes, num_channels, num_filters)`
-        """
-        data_format = K.normalize_data_format(data_format)
-        num_channels, num_filters = K.int_shape(kernel)
-
-        if data_format == 'channels_first':
-            num_nodes = K.int_shape(x)[-1]
-        elif data_format == 'channels_last':
-            num_nodes = K.int_shape(x)[-2]
-        return (num_nodes, num_channels, num_filters)
+        assert K.int_shape(z)[-2:] == (num_nodes, num_filters)
+        return z
 
     def get_config(self):
         config = {'filters': self.filters,
+                  'graph': self.graph_data,
                   'data_format': self.data_format,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':

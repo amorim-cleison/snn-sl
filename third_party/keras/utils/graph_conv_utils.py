@@ -3,7 +3,7 @@ Utilities used in graph convolutional layers.
 """
 import numpy as np
 from scipy import sparse as sp
-
+import tensorflow as tf
 
 def adjacency_matrix(edges: list, symmetric=True):
     """
@@ -135,20 +135,21 @@ def laplacian(a):
     return d - a
 
 
-def degree(a):
+def degree(graph):
     """
-    Calculate the degree matrix of the adjacency matrix A 
+    Calculate the degree matrix
     """
-    assert (a.ndim > 0)
-    d = a.sum(1)
-    d = np.squeeze(np.array(d))
-    d = sp.diags(d, shape=a.shape)
+    degrees = [val for (node, val) in graph.degree()]
+    d = sp.diags(degrees)
     return d
 
 
-def identity(matrix):
+def convert_sparse_matrix_to_sparse_tensor(X):
     """
-    Calculate the identity matrix of a matrix
+    Convert a sparse matrix to a SparseTensor
+
+    from: https://stackoverflow.com/questions/40896157/scipy-sparse-csr-matrix-to-tensorflow-sparsetensor-mini-batch-gradient-descent
     """
-    assert (matrix.ndim > 0)
-    return sp.identity(matrix.shape[0])
+    coo = X.tocoo()
+    indices = np.mat([coo.row, coo.col]).transpose()
+    return tf.SparseTensor(indices, coo.data, coo.shape)
