@@ -3,7 +3,7 @@ from third_party.keras.utils import graph_conv_utils
 import numpy as np
 import numpy.testing as nptest
 
-a = np.asarray([ 
+a = np.asarray([
     [0, 1, 0, 1],
     [1, 0, 1, 0],
     [0, 1, 0, 1],
@@ -32,17 +32,18 @@ x = np.asarray([
     [6, 9, 15, 12]
 ])
 
-edges = [ (0, 1), (1, 2), (2, 3), (3, 0) ]
+edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
 
 
 def test_adjaceny_matrix():
-    a_calc = graph_conv_utils.adjacency_matrix(edges, 4) 
+    # graph = graph_conv_utils.get_graph(edges)
+    a_calc = graph_conv_utils.adjacency_matrix(edges)
     __assert_matrices_equals(a_calc, a)
 
 
 # def test_normalize_adjacency_matrix():
-#     a_norm_calc = graph_conv_utils.normalized_adjacency_matrix(a) 
-#     a_norm = np.asarray([ 
+#     a_norm_calc = graph_conv_utils.normalized_adjacency_matrix(a)
+#     a_norm = np.asarray([
 #                 [0.333, 0.333,     0, 0.333],
 #                 [0.333, 0.333, 0.333,     0],
 #                 [    0, 0.333, 0.333, 0.333],
@@ -79,7 +80,7 @@ def test_adjaceny_matrix():
 
 # def test_laplacian_random_walk():
 #     l_rw_calc = graph_conv_utils.normalized_laplacian(a, 'random_walk')
-#     l_rw = np.asarray([ 
+#     l_rw = np.asarray([
 #                 [1,    -0.5,    0, -0.5],
 #                 [-0.5,    1, -0.5,    0],
 #                 [   0, -0.5,    1, -0.5],

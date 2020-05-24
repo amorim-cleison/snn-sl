@@ -97,9 +97,8 @@ class AttentionGraphConvLSTM(Architecture):
             l.Permute((2, 4, 3, 1), input_shape=self.input_shape, name='permute'), # -> (60, 1, 27, 3) 
             l.Lambda(lambda x: K.squeeze(x, axis=2), name='squeeze'), 
 
-            # ConvLSTM2D(10, (1, 2)),
-
-            GraphConvLSTM(self.edges, 10, name='graph_conv_lstm', return_sequences=True),
+            # l.Permute((1, 3, 2), name='mock_channel'),
+            GraphConvLSTM(self.edges, 10, name='graph_conv_lstm', return_sequences=True, data_format='channels_last'),
             l.Flatten(data_format=self.data_format, name='flatten'),
             l.Dense(self.num_classes),
             l.Activation('softmax')

@@ -10,7 +10,6 @@ from keras.layers.recurrent import (RNN, _generate_dropout_mask,
                                     _standardize_args)
 from keras.utils.generic_utils import has_arg, to_list, transpose_shape
 from networkx import Graph, adjacency_matrix
-from third_party.keras.utils.graph_conv_utils import normalized_adjacency_matrix
 
 # TODO: remove 
 import networkx as nx
@@ -347,7 +346,7 @@ class GraphConvRNN(RNN):
 
     def get_config(self):
         config = {'filters': self.filters,
-                  'graph': self.graph_data,
+                  'graph_data': self.graph_data,
                   'data_format': self.data_format,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':
@@ -520,7 +519,7 @@ class GraphConvLSTM(GraphConvRNN):
 
     def get_config(self):
         config = {'filters': self.filters,
-                  'graph': self.graph_data,
+                  'graph_data': self.graph_data,
                   'data_format': self.data_format,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':
@@ -585,6 +584,10 @@ class GraphConvLSTMCell(Layer):
         if graph_data is None:
             raise ValueError('The graph data must be defined. Found `None`.')
 
+        # TODO: implement support to 'channels_first' format:
+        if data_format == 'channels_first':
+            raise ValueError('Invalid data format. Only `channels_last` is allowed.')
+
         self.graph_data = graph_data
         self.filters = filters
         self.data_format = K.normalize_data_format(data_format)
@@ -618,14 +621,8 @@ class GraphConvLSTMCell(Layer):
         self.state_size = (self.filters, self.filters)
         self._dropout_mask = None
         self._recurrent_dropout_mask = None
-        self._conv_part = None
 
     def build(self, input_shape):
-        # Build graph:
-        # XXX: 2020-05-17: continue here - there is a problem using 
-        # 'nx.Graph' type. Keras/Tensorflow seems not to be compatible with it.
-        self.graph = Graph(self.graph_data)
-
         # Build kernels:
         if self.data_format == 'channels_first':
             channel_axis = -2
@@ -699,6 +696,13 @@ class GraphConvLSTMCell(Layer):
             self.bias_c = None
             self.bias_o = None
 
+        # Build graph:
+        graph = utils.get_graph(self.graph_data)
+        self.graph_num_nodes = utils.num_nodes(graph)
+        self.graph_adjacency = utils.adjacency_matrix(graph)
+        self.graph_degrees = utils.degrees(graph)
+        self.partial_z = None
+
         super(GraphConvLSTMCell, self).build(input_shape)
 
     def call(self, inputs, states, training=None):
@@ -770,8 +774,7 @@ class GraphConvLSTMCell(Layer):
 
     def input_conv(self, x, w, b=None):
         conv_out = self.graph_conv(x, w,
-                                   self.graph,
-                                   self.data_format)
+                                   data_format=self.data_format)
 
         if b is not None:
             conv_out = K.bias_add(conv_out, b,
@@ -780,11 +783,10 @@ class GraphConvLSTMCell(Layer):
 
     def recurrent_conv(self, x, w):
         return self.graph_conv(x, w,
-                               self.graph,
-                               self.data_format)
+                               data_format=self.data_format)
 
     # TODO: move this to K (Tensorflow backend)
-    def graph_conv(self, x, kernel, graph, data_format=None):
+    def graph_conv(self, x, kernel, data_format=None):
         """Graph convolution, as per 'Kipf and Welling'.
 
         # Arguments
@@ -807,40 +809,41 @@ class GraphConvLSTMCell(Layer):
         `w`        ~> [C, F] ~> [ 3, 10]
         `conv_out` ~> [N, F] ~> [27, 10]
         """
-        num_channels, num_filters = K.int_shape(kernel)
-        num_nodes = len(graph)
-        assert K.int_shape(x)[-2:] == (num_nodes, num_channels)
-        assert K.int_shape(kernel) == (num_channels, num_filters)
+        self.__validate_graph_conv_inputs(x, kernel)
 
-        if True: #self._conv_part is None:
-            # FIXME: stop parsing sparse matrix to dense (Keras bug):
-            adj = adjacency_matrix(graph).todense()
-            adj = K.variable(adj)
-
+        if self.partial_z is None:
             # Preprocessing from 'Kipf and Welling':
-            i = K.eye(K.int_shape(adj)[0])
+            adj = self.graph_adjacency
+            degree = self.graph_degrees
+
+            i = utils.identity(adj)
             a_hat = adj + i
-
-            # TODO: review degree:
-            # FIXME: stop parsing sparse matrix to dense (Keras bug):
-            d_hat = K.variable(utils.degree(graph).todense())
-
+            d_hat = degree
             d_hat_inv_sqrt = K.pow(d_hat, -0.5)
-            self._conv_part = d_hat_inv_sqrt * a_hat * d_hat_inv_sqrt  # (N, N)
+            partial_z = d_hat_inv_sqrt * a_hat * d_hat_inv_sqrt
+            self.partial_z = partial_z
 
         # Convolution:
         w_l = K.expand_dims(kernel, 0)
         x_theta = K.batch_dot(x, w_l)
 
-        z_l = K.expand_dims(self._conv_part, 0)
+        z_l = K.expand_dims(self.partial_z, 0)
         z = K.batch_dot(z_l, x_theta)
 
-        assert K.int_shape(z)[-2:] == (num_nodes, num_filters)
+        self.__validate_graph_conv_outputs(z)
         return z
+
+    def __validate_graph_conv_inputs(self, x, kernel):
+        num_channels, num_filters = K.int_shape(kernel)
+        assert (K.int_shape(x)[-2:] == (self.graph_num_nodes, num_channels))
+        assert (K.int_shape(kernel) == (num_channels, self.filters))
+
+    def __validate_graph_conv_outputs(self, z):
+        assert (K.int_shape(z)[-2:] == (self.graph_num_nodes, self.filters))
 
     def get_config(self):
         config = {'filters': self.filters,
-                  'graph': self.graph_data,
+                  'graph_data': self.graph_data,
                   'data_format': self.data_format,
                   'activation': activations.serialize(self.activation),
                   'recurrent_activation':

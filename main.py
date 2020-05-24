@@ -61,6 +61,9 @@ def tune(architectures, X_train, y_train, X_test, y_test, num_classes,
     print("Plotting history...")
     visualizer = ModelVisualizer()
     visualizer.plot_training_history(best_history)
+    
+    # Finish
+    print("Finished")
 
 
 def visualize(architecture: Architecture, X_train):
@@ -106,9 +109,6 @@ def train(architecture: Architecture, X_train, y_train, X_test, y_test,
     print("Plotting history...")
     visualizer = ModelVisualizer()
     visualizer.plot_training_history(history)
-
-    # Finish
-    print("Finished")
 
 
 def build_model(architecture: Architecture,
