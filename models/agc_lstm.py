@@ -8,15 +8,14 @@ from third_party.keras_dgl import layers as dgl
 
 from .architecture import Architecture
 
-from third_party.keras.utils import graph_conv_utils
-from third_party.keras.layers import GraphConvLSTM
+from third_party.keras.layers import AttentionGraphConvLSTM as AGCLSTM
 
-import networkx as nx
 
 class AttentionGraphConvLSTM(Architecture):
     """
     AGC-LSTM implementation as presented in:
-    'An Attention Enhanced Graph Convolutional LSTM Network for Skeleton-Based Action Recognition' 
+    'An Attention Enhanced Graph Convolutional LSTM Network for Skeleton-Based
+    Action Recognition'
     https://arxiv.org/abs/1902.09130
 
     Partial results:
@@ -25,19 +24,18 @@ class AttentionGraphConvLSTM(Architecture):
     """
 
     data_format = 'channels_last'
-    edges = [   (0, 1), (1, 2), (2, 16),
-                (0, 3), (3, 4), (4, 5),
-                (5, 6), (6, 7),
-                (5, 8), (8, 9),
-                (5, 10), (10, 11),
-                (5, 12), (12, 13),
-                (5, 14), (14, 15),
-                (16, 17), (17, 18),
-                (16, 19), (19, 20),
-                (16, 21), (21, 22),
-                (16, 23), (23, 24),
-                (16, 25), (25, 26)  ]
-
+    edges = [(0, 1), (1, 2), (2, 16),
+             (0, 3), (3, 4), (4, 5),
+             (5, 6), (6, 7),
+             (5, 8), (8, 9),
+             (5, 10), (10, 11),
+             (5, 12), (12, 13),
+             (5, 14), (14, 15),
+             (16, 17), (17, 18),
+             (16, 19), (19, 20),
+             (16, 21), (21, 22),
+             (16, 23), (23, 24),
+             (16, 25), (25, 26)]
 
     def __init__(self, input_shape, num_classes):
         super().__init__(input_shape, num_classes)
@@ -91,20 +89,21 @@ class AttentionGraphConvLSTM(Architecture):
         # num_features = self.input_shape[-2]
         # tmp = np.ones(shape=(1, num_features, num_features))
         # graph_conv_tensor = K.constant(tmp, K.floatx())
-        
+
         layers = [
             # l.Input(shape=self.input_shape),
-            l.Permute((2, 4, 3, 1), input_shape=self.input_shape, name='permute'), # -> (60, 1, 27, 3) 
-            l.Lambda(lambda x: K.squeeze(x, axis=2), name='squeeze'), 
+            l.Permute((2, 4, 3, 1), input_shape=self.input_shape,
+                      name='permute'),  # -> (60, 1, 27, 3)
+            l.Lambda(lambda x: K.squeeze(x, axis=2), name='squeeze'),
 
-            # l.Permute((1, 3, 2), name='mock_channel'),
-            GraphConvLSTM(self.edges, 10, name='graph_conv_lstm', return_sequences=True, data_format='channels_last'),
+            AGCLSTM(self.edges, 10, name='graph_conv_lstm',
+                    return_sequences=True, data_format='channels_last'),
             l.Flatten(data_format=self.data_format, name='flatten'),
             l.Dense(self.num_classes),
             l.Activation('softmax')
         ]
         return super().build_sequential(layers)
-    
+
     def agc_lstm_cell(self,
                       input,
                       filters,
@@ -121,7 +120,8 @@ class AttentionGraphConvLSTM(Architecture):
         # TODO: replace with GraphConvLSTM
 
         num_features = input.shape[-2]
-        # tmp = tf.zeros(shape=(1, num_features, num_features), dtype=tf.dtypes.float32)
+        # tmp = tf.zeros(shape=(1, num_features, num_features),
+        # dtype=tf.dtypes.float32)
 
         tmp = np.zeros(shape=(1, num_features, num_features))
         tmp[0][0][0] = 1
@@ -137,15 +137,15 @@ class AttentionGraphConvLSTM(Architecture):
         #     shape=(1, num_features, num_features), dtype=tf.dtypes.float32)
         graph_conv_lstm = dgl.GraphConvLSTM(filters,
                                             graph_conv_tensor).call(input)
-
         return graph_conv_lstm
-
 
     def build_graph(self, edges, num_features):
         i = [i for (i, j) in edges]
         j = [j for (i, j) in edges]
 
-        adj = sp.coo_matrix((np.ones(len(edges)), (i, j)), shape=(num_features, num_features), dtype=np.float32)
+        adj = sp.coo_matrix((np.ones(len(edges)), (i, j)),
+                            shape=(num_features, num_features),
+                            dtype=np.float32)
 
         # build symmetric adjacency matrix
         adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
@@ -156,15 +156,14 @@ class AttentionGraphConvLSTM(Architecture):
         # Build Graph Convolution filters
         SYM_NORM = True
         A_norm = self.preprocess_adj_numpy(A, SYM_NORM)
-        num_filters = 2
-        # graph_conv_filters = np.concatenate([A_norm, np.matmul(A_norm, A_norm)], axis=0)
+        # graph_conv_filters = np.concatenate([A_norm,
+        #   np.matmul(A_norm, A_norm)], axis=0)
         # graph_conv_filters = K.constant(graph_conv_filters)
 
         graph_conv_filters = np.expand_dims(A_norm, 0)
         graph_conv_filters = K.constant(graph_conv_filters)
 
         return graph_conv_filters
-
 
     def normalize_adj_numpy(self, adj, symmetric=True):
         if symmetric:
@@ -180,13 +179,12 @@ class AttentionGraphConvLSTM(Architecture):
         adj = self.normalize_adj_numpy(adj, symmetric)
         return adj
 
-
     @tf.function
     def agc_lstm_feature_augmentation(self, input):
         """
-        'Concatenate spatial feature and feature difference between two consecutive frames 
-        to compose an augmented feature.'
-        (2019 - Si et al - An Attention Enhanced Graph Convolutional 
+        'Concatenate spatial feature and feature difference between
+        two consecutive frames to compose an augmented feature.'
+        (2019 - Si et al - An Attention Enhanced Graph Convolutional
         LSTM Network for Skeleton-Based Action Recognition)
         """
         # tf.config.experimental_run_functions_eagerly(True)
